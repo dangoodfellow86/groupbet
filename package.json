@@ -6,21 +6,49 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "db:migrate": "tsx --env-file=.env src/server/db/migrate.ts",
+    "test:engine": "tsx src/core/engine/scoring.test.ts",
+    "test:api": "tsx src/core/api/football.test.ts",
+    "test:webhook": "tsx src/lib/verify-webhook.test.ts",
+    "test:lms": "tsx --env-file=.env src/server/actions/lms.test.ts",
+    "test:leagues": "tsx --env-file=.env src/server/actions/leagues.test.ts",
+    "test:predictor": "tsx --env-file=.env src/server/actions/predictor.test.ts",
+    "test:db": "tsx --env-file=.env src/server/db/settlement.test.ts",
+    "test:simulator": "tsx --env-file=.env src/server/actions/simulator.test.ts",
+    "test:remove-picks": "tsx --env-file=.env src/server/actions/remove-picks.test.ts",
+    "test:auth": "tsx --env-file=.env src/server/actions/auth.test.ts",
+    "test:realtime": "tsx --env-file=.env src/server/actions/realtime.test.ts",
+    "test:history": "tsx --env-file=.env src/server/actions/history.test.ts",
+    "test:sharing": "tsx src/lib/sharing.test.ts",
+    "test:profile": "tsx --env-file=.env src/server/actions/profile.test.ts",
+    "test:commissioner": "tsx --env-file=.env src/server/actions/commissioner.test.ts",
+    "test": "npm run test:engine && npm run test:api && npm run test:webhook && npm run test:lms && npm run test:leagues && npm run test:predictor && npm run test:db && npm run test:simulator && npm run test:remove-picks && npm run test:auth && npm run test:realtime && npm run test:history && npm run test:sharing && npm run test:profile && npm run test:commissioner"
   },
   "dependencies": {
+    "@prisma/client": "^6.19.3",
+    "@supabase/ssr": "^0.12.7",
+    "@supabase/supabase-js": "^2.116.0",
+    "@tanstack/react-query": "^5.103.1",
+    "clsx": "^2.1.1",
+    "lucide-react": "^1.46.0",
     "next": "16.3.5",
+    "pg": "^8.23.0",
     "react": "19.2.8",
-    "react-dom": "19.2.8"
+    "react-dom": "19.2.8",
+    "tailwind-merge": "^3.7.0"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
+    "@types/pg": "^8.23.1",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.3.5",
+    "prisma": "^6.19.3",
     "tailwindcss": "^4",
+    "tsx": "^4.23.13",
     "typescript": "^5"
   }
 }
