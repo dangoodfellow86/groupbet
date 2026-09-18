@@ -133,6 +133,18 @@ export function AuthModal({
         }
       } catch (err: any) {
         console.error('[AuthModal] Error during authentication:', err);
+        const errMsg = err?.message || String(err || '');
+        if (
+          errMsg.includes('was not found on the server') ||
+          errMsg.includes('UnrecognizedActionError') ||
+          errMsg.includes('failed-to-find-server-action')
+        ) {
+          setErrorMessage('New update detected. Refreshing application...');
+          setTimeout(() => {
+            window.location.reload();
+          }, 600);
+          return;
+        }
         setErrorMessage(
           err?.message || 'Connection failed. Please verify your email and network connection.'
         );
