@@ -69,66 +69,73 @@ export function AuthModal({
     }
 
     startTransition(async () => {
-      if (useMagicLink) {
-        const res = await sendMagicLink({ email: email.trim() });
-        if (res.success) {
-          setSuccessMessage(res.message);
-        } else {
-          setErrorMessage(res.message);
-        }
-        return;
-      }
-
-      if (mode === 'signup') {
-        if (!displayName.trim()) {
-          setErrorMessage('Please enter a display name for the leaderboards.');
-          return;
-        }
-        if (password.length < 6) {
-          setErrorMessage('Password must be at least 6 characters.');
-          return;
-        }
-
-        const res = await signUpWithPassword({
-          email: email.trim(),
-          password,
-          displayName: displayName.trim(),
-        });
-
-        if (res.success) {
-          setSuccessMessage(res.message);
-          if (res.requiresEmailConfirmation) {
-            // Keep message visible
+      try {
+        if (useMagicLink) {
+          const res = await sendMagicLink({ email: email.trim() });
+          if (res.success) {
+            setSuccessMessage(res.message);
           } else {
+            setErrorMessage(res.message);
+          }
+          return;
+        }
+
+        if (mode === 'signup') {
+          if (!displayName.trim()) {
+            setErrorMessage('Please enter a display name for the leaderboards.');
+            return;
+          }
+          if (password.length < 6) {
+            setErrorMessage('Password must be at least 6 characters.');
+            return;
+          }
+
+          const res = await signUpWithPassword({
+            email: email.trim(),
+            password,
+            displayName: displayName.trim(),
+          });
+
+          if (res.success) {
+            setSuccessMessage(res.message);
+            if (res.requiresEmailConfirmation) {
+              // Keep message visible
+            } else {
+              setTimeout(() => {
+                onAuthenticated?.();
+                onClose();
+              }, 1200);
+            }
+          } else {
+            setErrorMessage(res.message);
+          }
+        } else {
+          // Sign in
+          if (!password) {
+            setErrorMessage('Please enter your password.');
+            return;
+          }
+
+          const res = await signInWithPassword({
+            email: email.trim(),
+            password,
+          });
+
+          if (res.success) {
+            setSuccessMessage('Welcome back! Loading your profile...');
             setTimeout(() => {
               onAuthenticated?.();
               onClose();
-            }, 1200);
+            }, 1000);
+          } else {
+            setErrorMessage(res.message);
           }
-        } else {
-          setErrorMessage(res.message);
         }
-      } else {
-        // Sign in
-        if (!password) {
-          setErrorMessage('Please enter your password.');
-          return;
-        }
-
-        const res = await signInWithPassword({
-          email: email.trim(),
-          password,
-        });
-
-        if (res.success) {
-          setSuccessMessage('Welcome back! Loading your profile...');
-          setTimeout(() => {
-            onAuthenticated?.();
-            onClose();
-          }, 1000);
-        } else {
-          setErrorMessage(res.message);
-        }
+      } catch (err: any) {
+        console.error('[AuthModal] Error during authentication:', err);
+        setErrorMessage(
+          err?.message || 'Connection failed. Please verify your email and network connection.'
+        );
       }
     });
   };

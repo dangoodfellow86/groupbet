@@ -1,8 +1,13 @@
 import { Pool, PoolClient, QueryResult, QueryResultRow } from 'pg';
 
+function cleanConnString(val?: string): string {
+  if (!val) return '';
+  return val.replace(/^["']|["']$/g, '').trim();
+}
+
 const connectionString =
-  process.env.DIRECT_URL ||
-  process.env.DATABASE_URL ||
+  cleanConnString(process.env.DIRECT_URL) ||
+  cleanConnString(process.env.DATABASE_URL) ||
   'postgresql://postgres:postgres@localhost:5432/groupbet';
 
 // Create connection pool instance (singleton pattern across Next.js reloads in dev)

@@ -77,6 +77,14 @@ export function useMatchdayRealtime({
       return;
     }
 
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/^["']|["']$/g, '').trim();
+    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.replace(/^["']|["']$/g, '').trim();
+
+    if (!url || !key || !url.startsWith('http')) {
+      setConnectionStatus('disconnected');
+      return;
+    }
+
     const supabase = createClient();
     setConnectionStatus('connecting');
 
