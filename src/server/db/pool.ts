@@ -6,8 +6,8 @@ function cleanConnString(val?: string): string {
 }
 
 const connectionString =
-  cleanConnString(process.env.DIRECT_URL) ||
   cleanConnString(process.env.DATABASE_URL) ||
+  cleanConnString(process.env.DIRECT_URL) ||
   'postgresql://postgres:postgres@localhost:5432/groupbet';
 
 // Create connection pool instance (singleton pattern across Next.js reloads in dev)
@@ -29,8 +29,8 @@ export const pool: Pool =
   new Pool({
     connectionString,
     ssl: isRemote ? { rejectUnauthorized: false } : false,
-    max: isProduction ? 5 : 20,
-    idleTimeoutMillis: 30000,
+    max: 5,
+    idleTimeoutMillis: 1000,
     connectionTimeoutMillis: 10000,
   });
 

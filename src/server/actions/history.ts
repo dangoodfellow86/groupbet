@@ -89,11 +89,7 @@ export async function getLeagueHistoryMatrix(
       : league.settings || {};
     const isExclusive = settings.exclusive_team_picks ?? true;
 
-    // 2. Determine active / relevant gameweeks (GW 1 up to current active GW 5)
-    const currentGameweek = 5;
-    const gameweeks = [1, 2, 3, 4, 5];
-
-    // 3. Fetch Players in League
+    // 2. Fetch Players in League
     const playerSql = `
       SELECT 
         u.id AS user_id,
@@ -120,7 +116,7 @@ export async function getLeagueHistoryMatrix(
     `;
     const playerRes = await query(playerSql, [leagueId]);
 
-    // 4. Fetch LMS Picks
+    // 3. Fetch LMS Picks
     const lmsSql = `
       SELECT 
         e.user_id,
@@ -142,7 +138,7 @@ export async function getLeagueHistoryMatrix(
     `;
     const lmsRes = await query(lmsSql, [leagueId]);
 
-    // 5. Fetch Predictor Points per GW
+    // 4. Fetch Predictor Points per GW
     const predictorSql = `
       SELECT 
         p.user_id,
@@ -155,6 +151,18 @@ export async function getLeagueHistoryMatrix(
       GROUP BY p.user_id, gw.gameweek_number
     `;
     const predictorRes = await query(predictorSql, [leagueId]);
+
+    // 5. Determine active / relevant gameweeks dynamically
+    const currentGwRes = await query(
+      `SELECT gameweek_number FROM gameweeks WHERE is_current = true LIMIT 1`
+    );
+    const baseCurrentGw = currentGwRes.rows.length > 0 ? currentGwRes.rows[0].gameweek_number : 1;
+    const pickGws: number[] = [
+      ...lmsRes.rows.map((r: any) => r.gameweek_number),
+      ...predictorRes.rows.map((r: any) => r.gameweek_number),
+    ];
+    const currentGameweek = Math.max(baseCurrentGw, ...pickGws, 1);
+    const gameweeks = Array.from({ length: currentGameweek }, (_, i) => i + 1);
 
     // Build index of predictor points: Record<`${userId}_${gw}`, points>
     const predictorPointsIndex: Record<string, number> = {};

@@ -66,13 +66,26 @@ async function runTests() {
     );
     const guestUser = guestRes.rows[0];
 
+    // Fetch upcoming scheduled fixture
+    const fixRes = await query(
+      `SELECT f.id, f.gameweek_id, f.home_team_id, ht.name AS home_name, gw.gameweek_number
+       FROM fixtures f
+       JOIN gameweeks gw ON f.gameweek_id = gw.id
+       JOIN teams ht ON f.home_team_id = ht.id
+       WHERE f.status = 'SCHEDULED' AND f.kickoff_time > NOW()
+       ORDER BY f.kickoff_time ASC
+       LIMIT 1`
+    );
+    assert.ok(fixRes.rows.length > 0, 'No upcoming scheduled fixture found');
+    const fixture = fixRes.rows[0];
+
     // Create league with host
     const leagueRes = await createLeague({
       name: 'Auth Test Trophy',
       type: 'LAST_MAN_STANDING',
       creatorDisplayName: 'LeagueHost',
       creatorEmail: `host_${Date.now()}@test.com`,
-      startingGameweek: 5,
+      startingGameweek: fixture.gameweek_number,
     });
     assert.ok(leagueRes.success, 'League creation failed');
     const leagueId = leagueRes.league!.id;
@@ -86,16 +99,7 @@ async function runTests() {
     assert.ok(joinRes.success, 'Guest join failed');
     const guestEntryId = joinRes.entryId!;
 
-    // Guest submits LMS pick on GW5 fixture
-    const fixRes = await query(
-      `SELECT f.id, f.gameweek_id, f.home_team_id, ht.name AS home_name
-       FROM fixtures f
-       JOIN gameweeks gw ON f.gameweek_id = gw.id
-       JOIN teams ht ON f.home_team_id = ht.id
-       WHERE gw.gameweek_number = 5
-       LIMIT 1`
-    );
-    const fixture = fixRes.rows[0];
+    // Guest submits LMS pick on upcoming fixture
     const pickSubmit = await submitLmsPick({
       entryId: guestEntryId,
       gameweekId: fixture.gameweek_id,

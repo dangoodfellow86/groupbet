@@ -12,7 +12,28 @@ async function runTests() {
 
   try {
     // 1. Create a Predictor League
-    console.log('1. Setting up test user & Predictor league...');
+    // 1. Fetch an upcoming scheduled fixture
+    console.log('1. Fetching upcoming scheduled fixture...');
+    const fixRes = await query(
+      `
+      SELECT f.id, f.kickoff_time, gw.gameweek_number, ht.name AS home_team, at.name AS away_team
+      FROM fixtures f
+      JOIN gameweeks gw ON f.gameweek_id = gw.id
+      JOIN teams ht ON f.home_team_id = ht.id
+      JOIN teams at ON f.away_team_id = at.id
+      WHERE f.status = 'SCHEDULED' AND f.kickoff_time > NOW()
+      ORDER BY f.kickoff_time ASC
+      LIMIT 1;
+      `
+    );
+
+    assert.ok(fixRes.rows.length > 0, 'Should find at least 1 upcoming scheduled fixture');
+    const fixture = fixRes.rows[0];
+    const targetGw = fixture.gameweek_number;
+    console.log(`   ✅ Using fixture: ${fixture.home_team} vs ${fixture.away_team} (${fixture.id}) in GW ${targetGw}`);
+
+    // 2. Setting up test user & Predictor league
+    console.log('\n2. Setting up test user & Predictor league...');
     const hostName = `PredictorHost_${Date.now()}`;
     const hostEmail = `pred_host_${Date.now()}@test.com`;
 
@@ -21,32 +42,13 @@ async function runTests() {
       type: 'PREDICTOR',
       creatorDisplayName: hostName,
       creatorEmail: hostEmail,
-      startingGameweek: 5,
+      startingGameweek: targetGw,
     });
 
     assert.ok(leagueRes.success, `Failed to create league: ${leagueRes.message}`);
     const leagueId = leagueRes.league!.id;
     const userId = leagueRes.user!.id;
     console.log(`   ✅ Created league "${leagueRes.league!.name}" (${leagueId}) for ${hostName}`);
-
-    // 2. Fetch a Gameweek 5 upcoming fixture
-    console.log('\n2. Fetching upcoming fixture for GW 5...');
-    const fixRes = await query(
-      `
-      SELECT f.id, f.kickoff_time, ht.name AS home_team, at.name AS away_team
-      FROM fixtures f
-      JOIN gameweeks gw ON f.gameweek_id = gw.id
-      JOIN teams ht ON f.home_team_id = ht.id
-      JOIN teams at ON f.away_team_id = at.id
-      WHERE gw.gameweek_number = 5 AND f.status = 'SCHEDULED' AND f.kickoff_time > NOW()
-      ORDER BY f.kickoff_time ASC
-      LIMIT 1;
-      `
-    );
-
-    assert.ok(fixRes.rows.length > 0, 'Should find at least 1 scheduled fixture in GW 5');
-    const fixture = fixRes.rows[0];
-    console.log(`   ✅ Using fixture: ${fixture.home_team} vs ${fixture.away_team} (${fixture.id})`);
 
     // 3. Submit Multi-Market Predictions
     console.log('\n3. Testing submitPredictorPicks (Exact Score, Outcome, BTTS, Over/Under)...');
@@ -66,7 +68,7 @@ async function runTests() {
 
     // 4. Test getUserGameweekPredictions
     console.log('\n4. Testing getUserGameweekPredictions prefetching...');
-    const picksRes = await getUserGameweekPredictions(leagueId, 5, userId);
+    const picksRes = await getUserGameweekPredictions(leagueId, targetGw, userId);
     assert.ok(picksRes.success);
     const pred = picksRes.predictions[fixture.id];
     assert.ok(pred, 'Prediction for fixture should be returned');
@@ -133,13 +135,13 @@ async function runTests() {
       JOIN gameweeks gw ON f.gameweek_id = gw.id
       JOIN teams ht ON f.home_team_id = ht.id
       JOIN teams at ON f.away_team_id = at.id
-      WHERE gw.gameweek_number = 5 AND f.status = 'SCHEDULED' AND f.kickoff_time > NOW() AND f.id != $1
+      WHERE gw.gameweek_number = $1 AND f.status = 'SCHEDULED' AND f.kickoff_time > NOW() AND f.id != $2
       ORDER BY f.kickoff_time ASC
       LIMIT 1;
       `,
-      [fixture.id]
+      [targetGw, fixture.id]
     );
-    assert.ok(secondFixRes.rows.length > 0, 'Should find a 2nd fixture in GW 5');
+    assert.ok(secondFixRes.rows.length > 0, `Should find a 2nd fixture in GW ${targetGw}`);
     const fixture2 = secondFixRes.rows[0];
 
     // Player 2 chooses the unclaimed 2nd match
@@ -159,7 +161,7 @@ async function runTests() {
     // 8. Test getLeagueGameweekPredictorClaims
     console.log('\n8. Testing getLeagueGameweekPredictorClaims API...');
     const matchClaimsRes = await import('./predictor').then((m) =>
-      m.getLeagueGameweekPredictorClaims(leagueId, 5, userId)
+      m.getLeagueGameweekPredictorClaims(leagueId, targetGw, userId)
     );
     assert.ok(matchClaimsRes.success);
     assert.equal(matchClaimsRes.exclusiveMatches, true);
@@ -181,13 +183,13 @@ async function runTests() {
       JOIN gameweeks gw ON f.gameweek_id = gw.id
       JOIN teams ht ON f.home_team_id = ht.id
       JOIN teams at ON f.away_team_id = at.id
-      WHERE gw.gameweek_number = 5 AND f.status = 'SCHEDULED' AND f.kickoff_time > NOW() AND f.id NOT IN ($1, $2)
+      WHERE gw.gameweek_number = $1 AND f.status = 'SCHEDULED' AND f.kickoff_time > NOW() AND f.id NOT IN ($2, $3)
       ORDER BY f.kickoff_time ASC
       LIMIT 1;
       `,
-      [fixture.id, fixture2.id]
+      [targetGw, fixture.id, fixture2.id]
     );
-    assert.ok(thirdFixRes.rows.length > 0, 'Should find a 3rd fixture in GW 5');
+    assert.ok(thirdFixRes.rows.length > 0, `Should find a 3rd fixture in GW ${targetGw}`);
     const fixture3 = thirdFixRes.rows[0];
 
     // Player 2 switches their 1-match pick to fixture 3
@@ -203,8 +205,8 @@ async function runTests() {
     });
     assert.ok(switchRes.success, `Pick switch failed: ${switchRes.message}`);
 
-    // Verify Player 2 now only has 1 pick in GW 5 on fixture 3
-    const player2Picks = await getUserGameweekPredictions(leagueId, 5, player2Id);
+    // Verify Player 2 now only has 1 pick in targetGw on fixture 3
+    const player2Picks = await getUserGameweekPredictions(leagueId, targetGw, player2Id);
     assert.ok(player2Picks.success);
     assert.equal(player2Picks.predictions[fixture2.id], undefined, 'Old fixture 2 pick must be deleted');
     assert.ok(player2Picks.predictions[fixture3.id], 'New fixture 3 pick must exist');

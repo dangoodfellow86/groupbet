@@ -141,11 +141,12 @@ async function runTests() {
     // 7. Test Survivor Board Pick Privacy Masking
     console.log('\n7. Testing Survivor Board Pick Privacy Masking...');
     const gw5TeamRes = await query(
-      `SELECT t.id, t.name, t.tla, gw.id AS gameweek_id 
+      `SELECT t.id, t.name, t.tla, gw.id AS gameweek_id, gw.gameweek_number
        FROM fixtures f 
        JOIN gameweeks gw ON f.gameweek_id = gw.id 
        JOIN teams t ON f.home_team_id = t.id 
-       WHERE gw.gameweek_number = 5 
+       WHERE f.status = 'SCHEDULED' AND f.kickoff_time > NOW()
+       ORDER BY f.kickoff_time ASC
        LIMIT 1`
     );
 
@@ -161,7 +162,7 @@ async function runTests() {
       // Host views the survivor board (host is viewingUserId)
       const hostView = await getLeagueSurvivorBoard(
         aioCreateResult.league!.id,
-        5,
+        targetTeam.gameweek_number,
         aioCreateResult.user!.id
       );
       const friendFromHostView = hostView.players.find((p) => p.displayName === aioFriendName);
@@ -180,7 +181,7 @@ async function runTests() {
       // Friend views the survivor board (friend is viewingUserId)
       const friendView = await getLeagueSurvivorBoard(
         aioCreateResult.league!.id,
-        5,
+        targetTeam.gameweek_number,
         aioJoinResult.user!.id
       );
       const friendFromFriendView = friendView.players.find((p) => p.displayName === aioFriendName);

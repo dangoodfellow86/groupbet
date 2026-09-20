@@ -41,42 +41,43 @@ async function runTests() {
     assert.ok(joinRes.success, `Friend join failed: ${joinRes.message}`);
     const friendId = joinRes.user!.id;
 
-    // Get GW 5 ID
-    const gw5Res = await query(`SELECT id FROM gameweeks WHERE gameweek_number = 5 LIMIT 1;`);
-    assert.ok(gw5Res.rows.length > 0, 'Gameweek 5 should exist');
-    const gameweek5Id = gw5Res.rows[0].id;
-
-    // Get a fixture in GW 5
+    // Get upcoming scheduled fixture
     const fixtureRes = await query(`
-      SELECT f.id, f.home_team_id, f.away_team_id, ht.name as home_name
+      SELECT f.id, f.gameweek_id, f.home_team_id, f.away_team_id, f.kickoff_time, ht.name as home_name, gw.gameweek_number
       FROM fixtures f
+      JOIN gameweeks gw ON f.gameweek_id = gw.id
       JOIN teams ht ON f.home_team_id = ht.id
-      WHERE f.gameweek_id = $1 AND f.status = 'SCHEDULED' AND f.kickoff_time > NOW()
+      WHERE f.status = 'SCHEDULED' AND f.kickoff_time > NOW()
+      ORDER BY f.kickoff_time ASC
       LIMIT 1;
-    `, [gameweek5Id]);
-    assert.ok(fixtureRes.rows.length > 0, 'GW 5 fixture should exist');
+    `);
+    assert.ok(fixtureRes.rows.length > 0, 'Upcoming scheduled fixture should exist');
     const fixture = fixtureRes.rows[0];
+    const targetGwId = fixture.gameweek_id;
+    const targetGw = fixture.gameweek_number;
     const teamAId = fixture.home_team_id;
     const teamAName = fixture.home_name;
 
-    // Submit an LMS pick for Host in GW 5
-    console.log('\n2. Submitting LMS Pick for Host in GW 5...');
+    // Submit an LMS pick for Host
+    console.log(`\n2. Submitting LMS Pick for Host in GW ${targetGw}...`);
     const lmsRes = await submitLmsPick({
       entryId: hostEntryId,
-      gameweekId: gameweek5Id,
+      gameweekId: targetGwId,
       teamId: teamAId,
       fixtureId: fixture.id,
       teamName: teamAName,
+      kickoffTime: fixture.kickoff_time,
     });
     assert.ok(lmsRes.success, `Host LMS pick failed: ${lmsRes.message}`);
 
-    // Submit a Predictor pick for Friend in GW 5
-    console.log('\n3. Submitting Predictor Pick for Friend in GW 5...');
+    // Submit a Predictor pick for Friend
+    console.log(`\n3. Submitting Predictor Pick for Friend in GW ${targetGw}...`);
     const predRes = await submitPredictorPicks({
       leagueId,
       userId: friendId,
       fixtureId: fixture.id,
       exactScore: { home: 2, away: 1 },
+      kickoffTime: fixture.kickoff_time,
     });
     assert.ok(predRes.success, `Friend Predictor pick failed: ${predRes.message}`);
 
@@ -86,15 +87,15 @@ async function runTests() {
     console.log('\n4. Testing getLeagueHistoryMatrix...');
     const matrixRes = await getLeagueHistoryMatrix(leagueId, hostId);
     assert.ok(matrixRes.success, 'Matrix retrieval should succeed');
-    assert.equal(matrixRes.gameweeks.length, 5, 'Should return gameweeks 1 through 5');
-    assert.equal(matrixRes.currentGameweek, 5, 'Current gameweek should be 5');
+    assert.equal(matrixRes.gameweeks.length, targetGw, `Should return gameweeks 1 through ${targetGw}`);
+    assert.equal(matrixRes.currentGameweek, targetGw, `Current gameweek should be ${targetGw}`);
     assert.equal(matrixRes.players.length, 2, 'Should return both registered players');
 
-    // Verify Host's GW 5 Pick is visible to Host
+    // Verify Host's Pick is visible to Host
     const hostRow = matrixRes.players.find((p) => p.userId === hostId);
     assert.ok(hostRow, 'Host should be present in matrix');
-    assert.ok(hostRow.picksByGameweek[5], 'Host should have GW 5 pick recorded');
-    assert.equal(hostRow.picksByGameweek[5].teamName, teamAName, 'Host should see their own team pick');
+    assert.ok(hostRow.picksByGameweek[targetGw], `Host should have GW ${targetGw} pick recorded`);
+    assert.equal(hostRow.picksByGameweek[targetGw].teamName, teamAName, 'Host should see their own team pick');
 
     // ------------------------------------------------------------------------
     // 5. TEST: getUserBurnedTeams
@@ -109,7 +110,7 @@ async function runTests() {
     const burnedTeamA = burnedRes.teams.find((t) => t.id === teamAId);
     assert.ok(burnedTeamA, 'Team A should be found');
     assert.equal(burnedTeamA.isBurned, true, 'Team A should be marked as burned');
-    assert.equal(burnedTeamA.gameweekNumber, 5, 'Team A should have gameweekNumber = 5');
+    assert.equal(burnedTeamA.gameweekNumber, targetGw, `Team A should have gameweekNumber = ${targetGw}`);
 
     console.log('\n✨ All Gameweek History & Burned Teams Tests Passed successfully!\n');
   } catch (err) {

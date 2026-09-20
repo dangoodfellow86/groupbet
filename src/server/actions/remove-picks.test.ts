@@ -15,32 +15,33 @@ async function runTests() {
     // ----------------------------------------------------
     // 1. LMS PICK REMOVAL & CLAIM RELEASE
     // ----------------------------------------------------
-    console.log('1. Setting up LMS league and testing removeLmsPick...');
+    console.log('1. Fetching upcoming fixture and setting up LMS league...');
+    // Get an upcoming scheduled fixture
+    const fixRes = await query(
+      `SELECT f.id, f.gameweek_id, f.home_team_id, f.away_team_id, f.kickoff_time, gw.gameweek_number,
+              ht.name AS home_name, at.name AS away_name
+       FROM fixtures f
+       JOIN gameweeks gw ON f.gameweek_id = gw.id
+       JOIN teams ht ON f.home_team_id = ht.id
+       JOIN teams at ON f.away_team_id = at.id
+       WHERE f.status = 'SCHEDULED' AND f.kickoff_time > NOW()
+       ORDER BY f.kickoff_time ASC
+       LIMIT 1`
+    );
+    assert.ok(fixRes.rows.length > 0, 'No upcoming scheduled fixture found');
+    const fixture = fixRes.rows[0];
+
     const lmsHostName = `LmsRemoveHost_${Date.now()}`;
     const lmsLeagueRes = await createLeague({
       name: 'LMS Remove Test League',
       type: 'LAST_MAN_STANDING',
       creatorDisplayName: lmsHostName,
       creatorEmail: `lms_remove_${Date.now()}@test.com`,
-      startingGameweek: 5,
+      startingGameweek: fixture.gameweek_number,
     });
     assert.ok(lmsLeagueRes.success, 'Failed to create LMS league');
     const lmsLeagueId = lmsLeagueRes.league!.id;
     const lmsEntryId = lmsLeagueRes.entryId!;
-
-    // Get a GW5 fixture
-    const fixRes = await query(
-      `SELECT f.id, f.gameweek_id, f.home_team_id, f.away_team_id, f.kickoff_time,
-              ht.name AS home_name, at.name AS away_name
-       FROM fixtures f
-       JOIN gameweeks gw ON f.gameweek_id = gw.id
-       JOIN teams ht ON f.home_team_id = ht.id
-       JOIN teams at ON f.away_team_id = at.id
-       WHERE gw.gameweek_number = 5 AND f.status = 'SCHEDULED' AND f.kickoff_time > NOW()
-       LIMIT 1`
-    );
-    assert.ok(fixRes.rows.length > 0, 'No GW5 fixture found');
-    const fixture = fixRes.rows[0];
 
     // Submit LMS pick
     const submitRes = await submitLmsPick({
@@ -87,7 +88,7 @@ async function runTests() {
       type: 'PREDICTOR',
       creatorDisplayName: predHostName,
       creatorEmail: `pred_rem_${Date.now()}@test.com`,
-      startingGameweek: 5,
+      startingGameweek: fixture.gameweek_number,
     });
     assert.ok(predLeagueRes.success, 'Failed to create Predictor league');
     const predLeagueId = predLeagueRes.league!.id;
@@ -141,7 +142,7 @@ async function runTests() {
     console.log(`   ✅ Player 1 removed prediction: "${p1Remove.message}"`);
 
     // Verify Player 1 has no prediction left
-    const p1Preds = await getUserGameweekPredictions(predLeagueId, 5, player1Id);
+    const p1Preds = await getUserGameweekPredictions(predLeagueId, fixture.gameweek_number, player1Id);
     assert.equal(p1Preds.predictions[fixture.id], undefined, 'Player 1 predictions should be cleared');
 
     // Now Player 2 can successfully claim the newly freed fixture!
