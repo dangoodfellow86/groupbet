@@ -63,24 +63,31 @@ export async function syncFootballData(competitionCode = 'PL'): Promise<SyncResu
   );
   const competitionId: string = compUpsert.rows[0].id;
 
-  // 3. Upsert Teams
-  const teamIdMap = new Map<number, string>(); // external_id -> db UUID
+  // 3. Upsert Teams (cached lookup: only insert missing teams)
+  const existingTeams = await query<{ id: string; external_id: number }>('SELECT id, external_id FROM teams');
+  const teamIdMap = new Map<number, string>();
+  for (const row of existingTeams.rows) {
+    teamIdMap.set(row.external_id, row.id);
+  }
+
   for (const team of teams) {
-    const teamUpsert = await query(
-      `
-      INSERT INTO teams (external_id, name, short_name, tla, crest_url)
-      VALUES ($1, $2, $3, $4, $5)
-      ON CONFLICT (external_id) DO UPDATE SET
-        name = EXCLUDED.name,
-        short_name = EXCLUDED.short_name,
-        tla = EXCLUDED.tla,
-        crest_url = EXCLUDED.crest_url,
-        updated_at = NOW()
-      RETURNING id, external_id;
-      `,
-      [team.id, team.name, team.shortName, team.tla, team.crest]
-    );
-    teamIdMap.set(team.id, teamUpsert.rows[0].id);
+    if (!teamIdMap.has(team.id)) {
+      const teamUpsert = await query<{ id: string; external_id: number }>(
+        `
+        INSERT INTO teams (external_id, name, short_name, tla, crest_url)
+        VALUES ($1, $2, $3, $4, $5)
+        ON CONFLICT (external_id) DO UPDATE SET
+          name = EXCLUDED.name,
+          short_name = EXCLUDED.short_name,
+          tla = EXCLUDED.tla,
+          crest_url = EXCLUDED.crest_url,
+          updated_at = NOW()
+        RETURNING id, external_id;
+        `,
+        [team.id, team.name, team.shortName, team.tla, team.crest]
+      );
+      teamIdMap.set(team.id, teamUpsert.rows[0].id);
+    }
   }
 
   // 4. Group fixtures by gameweek to calculate gameweek deadlines and completion
@@ -92,8 +99,16 @@ export async function syncFootballData(competitionCode = 'PL'): Promise<SyncResu
     gameweekMap.set(gw, group);
   }
 
-  // 5. Upsert Gameweeks
-  const gameweekIdMap = new Map<number, string>(); // gameweek_number -> gameweek UUID
+  // 5. Upsert Gameweeks (only update changed flags)
+  const existingGws = await query<{
+    id: string;
+    gameweek_number: number;
+    is_current: boolean;
+    is_completed: boolean;
+  }>('SELECT id, gameweek_number, is_current, is_completed FROM gameweeks WHERE competition_id = $1', [competitionId]);
+  const existingGwsMap = new Map(existingGws.rows.map((g) => [g.gameweek_number, g]));
+  const gameweekIdMap = new Map<number, string>();
+
   for (const [gwNumber, gwFixtures] of gameweekMap.entries()) {
     const sortedKickoffs = gwFixtures
       .map((f) => new Date(f.utcDate).getTime())
@@ -104,20 +119,31 @@ export async function syncFootballData(competitionCode = 'PL'): Promise<SyncResu
       gwNumber < currentGameweek ||
       gwFixtures.every((f) => ['FINISHED', 'FT', 'AWARDED'].includes(f.status));
 
-    const gwUpsert = await query(
-      `
-      INSERT INTO gameweeks (competition_id, gameweek_number, deadline, is_current, is_completed)
-      VALUES ($1, $2, $3, $4, $5)
-      ON CONFLICT (competition_id, gameweek_number) DO UPDATE SET
-        deadline = EXCLUDED.deadline,
-        is_current = EXCLUDED.is_current,
-        is_completed = EXCLUDED.is_completed,
-        updated_at = NOW()
-      RETURNING id, gameweek_number;
-      `,
-      [competitionId, gwNumber, earliestDeadline, isCurrent, isCompleted]
-    );
-    gameweekIdMap.set(gwNumber, gwUpsert.rows[0].id);
+    const existingGw = existingGwsMap.get(gwNumber);
+    if (!existingGw) {
+      const gwUpsert = await query<{ id: string; gameweek_number: number }>(
+        `
+        INSERT INTO gameweeks (competition_id, gameweek_number, deadline, is_current, is_completed)
+        VALUES ($1, $2, $3, $4, $5)
+        ON CONFLICT (competition_id, gameweek_number) DO UPDATE SET
+          deadline = EXCLUDED.deadline,
+          is_current = EXCLUDED.is_current,
+          is_completed = EXCLUDED.is_completed,
+          updated_at = NOW()
+        RETURNING id, gameweek_number;
+        `,
+        [competitionId, gwNumber, earliestDeadline, isCurrent, isCompleted]
+      );
+      gameweekIdMap.set(gwNumber, gwUpsert.rows[0].id);
+    } else {
+      gameweekIdMap.set(gwNumber, existingGw.id);
+      if (existingGw.is_current !== isCurrent || existingGw.is_completed !== isCompleted) {
+        await query(
+          `UPDATE gameweeks SET is_current = $1, is_completed = $2, updated_at = NOW() WHERE id = $3`,
+          [isCurrent, isCompleted, existingGw.id]
+        );
+      }
+    }
   }
 
   // 6. Fetch existing DB fixtures for comparison
@@ -128,7 +154,9 @@ export async function syncFootballData(competitionCode = 'PL'): Promise<SyncResu
     home_score: number | null;
     away_score: number | null;
     settled_at: string | null;
-  }>('SELECT id, external_id, status, home_score, away_score, settled_at FROM fixtures');
+    kickoff_time: string;
+    gameweek_id: string;
+  }>('SELECT id, external_id, status, home_score, away_score, settled_at, kickoff_time, gameweek_id FROM fixtures');
 
   const existingMap = new Map<number, typeof existingFixturesRes.rows[number]>();
   for (const row of existingFixturesRes.rows) {
@@ -189,15 +217,19 @@ export async function syncFootballData(competitionCode = 'PL'): Promise<SyncResu
       );
       fixtureId = insertRes.rows[0]?.id;
     } else {
-      // Update kickoff time if rescheduled
-      await query(
-        `
-        UPDATE fixtures
-        SET kickoff_time = $1, gameweek_id = $2
-        WHERE id = $3 AND (kickoff_time != $1 OR gameweek_id != $2)
-        `,
-        [f.utcDate, gameweekId, existing.id]
-      );
+      // Only update kickoff time or gameweek if actually changed
+      const kickoffChanged = new Date(existing.kickoff_time).getTime() !== new Date(f.utcDate).getTime();
+      const gwChanged = existing.gameweek_id !== gameweekId;
+      if (kickoffChanged || gwChanged) {
+        await query(
+          `
+          UPDATE fixtures
+          SET kickoff_time = $1, gameweek_id = $2
+          WHERE id = $3
+          `,
+          [f.utcDate, gameweekId, existing.id]
+        );
+      }
     }
 
     fixtureCount++;
