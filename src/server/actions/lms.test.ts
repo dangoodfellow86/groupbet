@@ -49,12 +49,31 @@ async function runLmsActionTests() {
   const hostName = `LmsHost_${timestamp}`;
   const hostEmail = `lms_host_${timestamp}@test.com`;
 
+  // Fetch an upcoming scheduled fixture with home and away teams
+  const fixRes = await query(
+    `
+    SELECT f.id AS fixture_id, f.gameweek_id, f.kickoff_time, gw.gameweek_number,
+           ht.id AS home_team_id, ht.name AS home_team_name,
+           at.id AS away_team_id, at.name AS away_team_name
+    FROM fixtures f
+    JOIN gameweeks gw ON f.gameweek_id = gw.id
+    JOIN teams ht ON f.home_team_id = ht.id
+    JOIN teams at ON f.away_team_id = at.id
+    WHERE f.status = 'SCHEDULED' AND f.kickoff_time > NOW()
+    ORDER BY f.kickoff_time ASC
+    LIMIT 1;
+    `
+  );
+
+  assert(fixRes.rows.length > 0, 'Should find at least 1 upcoming scheduled fixture');
+  const fix = fixRes.rows[0];
+
   const leagueRes = await createLeague({
     name: `LMS Clash ${timestamp}`,
     type: 'LAST_MAN_STANDING',
     creatorDisplayName: hostName,
     creatorEmail: hostEmail,
-    startingGameweek: 5,
+    startingGameweek: fix.gameweek_number,
     startingLives: 1,
     exclusiveTeamPicks: true,
   });
@@ -66,24 +85,6 @@ async function runLmsActionTests() {
   let friendUserId: string | null = null;
 
   try {
-    // Fetch a Gameweek 5 scheduled fixture with home and away teams
-    const fixRes = await query(
-      `
-      SELECT f.id AS fixture_id, f.gameweek_id, f.kickoff_time,
-             ht.id AS home_team_id, ht.name AS home_team_name,
-             at.id AS away_team_id, at.name AS away_team_name
-      FROM fixtures f
-      JOIN gameweeks gw ON f.gameweek_id = gw.id
-      JOIN teams ht ON f.home_team_id = ht.id
-      JOIN teams at ON f.away_team_id = at.id
-      WHERE gw.gameweek_number = 5 AND f.status = 'SCHEDULED'
-      LIMIT 1;
-      `
-    );
-
-    assert(fixRes.rows.length > 0, 'Should find at least 1 fixture in GW 5');
-    const fix = fixRes.rows[0];
-
     // Player 1 (Host) picks home team
     const hostPick = await submitLmsPick({
       entryId: hostEntryId,
@@ -138,7 +139,7 @@ async function runLmsActionTests() {
     console.log(`✓ Player 2 (${friendName}) successfully picked unique team: ${fix.away_team_name}`);
 
     // Test getLeagueGameweekLmsPicks returns both claims with ownership
-    const claimsRes = await getLeagueGameweekLmsPicks(leagueId, 5, hostUserId);
+    const claimsRes = await getLeagueGameweekLmsPicks(leagueId, fix.gameweek_number, hostUserId);
     assert(claimsRes.success, 'getLeagueGameweekLmsPicks should succeed');
     assert(claimsRes.exclusiveTeamPicks === true, 'League should be marked exclusive');
     assert(claimsRes.claims[fix.home_team_id]?.isOwn === true, 'Host should own home team pick');
@@ -146,7 +147,7 @@ async function runLmsActionTests() {
     console.log('✓ getLeagueGameweekLmsPicks verified: claimed teams correctly identified with ownership');
 
     // Test getLeagueSurvivorBoard reveals picks live (unmasked) under exclusive rules
-    const boardRes = await getLeagueSurvivorBoard(leagueId, 5, hostUserId);
+    const boardRes = await getLeagueSurvivorBoard(leagueId, fix.gameweek_number, hostUserId);
     assert(boardRes.success, 'Survivor board lookup should succeed');
     assert(boardRes.players.length === 2, 'Should have 2 players on board');
 

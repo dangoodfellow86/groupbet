@@ -5,6 +5,7 @@ import { NormalizedFixture, NormalizedStandingRow } from '@/core/types/football'
 
 export interface FixturesApiResponse {
   gameweek: number;
+  activeGameweek?: number;
   fixtures: Array<{
     id: string;
     external_id: number;

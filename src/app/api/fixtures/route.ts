@@ -1,25 +1,30 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/server/db/pool';
 import { footballClient } from '@/core/api/football';
+import { syncFootballData } from '@/server/services/football-sync';
 
 export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl;
   const gwParam = searchParams.get('gw');
+  const shouldRefresh = searchParams.get('refresh') === 'true';
   const gwNumber = gwParam ? parseInt(gwParam, 10) : undefined;
 
-  try {
-    // 1. Try querying PostgreSQL
-    let currentGw = gwNumber;
-    if (!currentGw) {
-      const gwRes = await query<{ gameweek_number: number }>(
-        'SELECT gameweek_number FROM gameweeks WHERE is_current = TRUE LIMIT 1'
-      );
-      if (gwRes.rows.length > 0) {
-        currentGw = gwRes.rows[0].gameweek_number;
-      } else {
-        currentGw = 28; // default fallback gameweek
-      }
+  // On-demand sync when requested (e.g. user clicked refresh in UI)
+  if (shouldRefresh) {
+    try {
+      await syncFootballData('PL');
+    } catch (syncErr: any) {
+      console.warn('[API /api/fixtures] On-demand sync failed:', syncErr.message);
     }
+  }
+
+  try {
+    // 1. Determine active and target gameweek
+    const activeGwRes = await query<{ gameweek_number: number }>(
+      'SELECT gameweek_number FROM gameweeks WHERE is_current = TRUE LIMIT 1'
+    );
+    const activeGameweek = activeGwRes.rows[0]?.gameweek_number || 5;
+    const currentGw = gwNumber ?? activeGameweek;
 
     const fixturesRes = await query(
       `
@@ -62,6 +67,7 @@ export async function GET(req: NextRequest) {
     if (fixturesRes.rows.length > 0) {
       return NextResponse.json({
         gameweek: currentGw,
+        activeGameweek,
         fixtures: fixturesRes.rows,
         source: 'db',
       });
@@ -105,8 +111,10 @@ export async function GET(req: NextRequest) {
       },
     }));
 
+    const activeGw = res.currentMatchday || 5;
     return NextResponse.json({
-      gameweek: gwNumber || res.currentMatchday || 4,
+      gameweek: gwNumber || activeGw,
+      activeGameweek: activeGw,
       fixtures: normalizedFixtures,
       source: 'api',
     });

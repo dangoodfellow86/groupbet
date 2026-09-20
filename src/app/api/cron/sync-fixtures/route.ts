@@ -16,10 +16,11 @@ async function handleSync(req: NextRequest) {
 
   // Verify secret if configured in environment
   if (cronSecret) {
+    const isVercelCron = req.headers.get('x-vercel-cron') === '1';
     const isBearerValid = authHeader === `Bearer ${cronSecret}`;
     const isQueryValid = querySecret === cronSecret;
 
-    if (!isBearerValid && !isQueryValid) {
+    if (!isBearerValid && !isQueryValid && !isVercelCron) {
       return NextResponse.json(
         { error: 'Unauthorized: Invalid CRON_SECRET' },
         { status: 401 }

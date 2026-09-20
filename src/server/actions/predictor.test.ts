@@ -38,7 +38,7 @@ async function runTests() {
       JOIN gameweeks gw ON f.gameweek_id = gw.id
       JOIN teams ht ON f.home_team_id = ht.id
       JOIN teams at ON f.away_team_id = at.id
-      WHERE gw.gameweek_number = 5 AND f.status = 'SCHEDULED'
+      WHERE gw.gameweek_number = 5 AND f.status = 'SCHEDULED' AND f.kickoff_time > NOW()
       ORDER BY f.kickoff_time ASC
       LIMIT 1;
       `
@@ -133,7 +133,7 @@ async function runTests() {
       JOIN gameweeks gw ON f.gameweek_id = gw.id
       JOIN teams ht ON f.home_team_id = ht.id
       JOIN teams at ON f.away_team_id = at.id
-      WHERE gw.gameweek_number = 5 AND f.status = 'SCHEDULED' AND f.id != $1
+      WHERE gw.gameweek_number = 5 AND f.status = 'SCHEDULED' AND f.kickoff_time > NOW() AND f.id != $1
       ORDER BY f.kickoff_time ASC
       LIMIT 1;
       `,
@@ -181,7 +181,7 @@ async function runTests() {
       JOIN gameweeks gw ON f.gameweek_id = gw.id
       JOIN teams ht ON f.home_team_id = ht.id
       JOIN teams at ON f.away_team_id = at.id
-      WHERE gw.gameweek_number = 5 AND f.status = 'SCHEDULED' AND f.id NOT IN ($1, $2)
+      WHERE gw.gameweek_number = 5 AND f.status = 'SCHEDULED' AND f.kickoff_time > NOW() AND f.id NOT IN ($1, $2)
       ORDER BY f.kickoff_time ASC
       LIMIT 1;
       `,

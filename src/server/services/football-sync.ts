@@ -1,5 +1,5 @@
 import { footballClient } from '@/core/api/football';
-import { withTransaction } from '@/server/db/pool';
+import { query } from '@/server/db/pool';
 import { MatchStatus } from '@/core/types/database';
 
 export interface SyncResult {
@@ -7,12 +7,32 @@ export interface SyncResult {
   syncedTeams: number;
   syncedGameweeks: number;
   syncedFixtures: number;
+  settledFixtures: number;
+  liveFixtures: number;
   currentGameweek: number;
   timestamp: string;
 }
 
+function mapApiStatusToMatchStatus(apiStatus: string): MatchStatus {
+  const s = (apiStatus || '').toUpperCase();
+  if (['FINISHED', 'FT', 'AET', 'PEN', 'AWARDED'].includes(s)) {
+    return 'FINISHED';
+  }
+  if (['IN_PLAY', 'PAUSED', 'LIVE', '1H', 'HT', '2H', 'ET', 'BT', 'P'].includes(s)) {
+    return 'LIVE';
+  }
+  if (['POSTPONED', 'PST', 'SUSP', 'INT'].includes(s)) {
+    return 'POSTPONED';
+  }
+  if (['CANCELLED', 'CANC', 'ABD'].includes(s)) {
+    return 'CANCELLED';
+  }
+  return 'SCHEDULED';
+}
+
 /**
  * Ingests current season Premier League teams, gameweeks, and fixtures into PostgreSQL.
+ * Automatically settles finished matches via settle_fixture() and updates live match scores.
  */
 export async function syncFootballData(competitionCode = 'PL'): Promise<SyncResult> {
   console.log(`[FootballSync] Ingesting current live season from Football-Data.org for ${competitionCode}...`);
@@ -25,102 +45,117 @@ export async function syncFootballData(competitionCode = 'PL'): Promise<SyncResu
 
   const fixtures = fixturesData.matches;
   const seasonStr = fixturesData.season;
-  const currentGameweek = fixturesData.currentMatchday;
+  const currentGameweek = fixturesData.currentMatchday || 1;
 
-  return await withTransaction(async (client) => {
-    // 2. Upsert Competition (Premier League)
-    const compUpsert = await client.query(
+  // 2. Upsert Competition (Premier League)
+  const compUpsert = await query(
+    `
+    INSERT INTO competitions (external_id, name, code, season)
+    VALUES (2021, 'Premier League', 'PL', $1)
+    ON CONFLICT (external_id) DO UPDATE SET
+      name = EXCLUDED.name,
+      code = EXCLUDED.code,
+      season = EXCLUDED.season,
+      updated_at = NOW()
+    RETURNING id;
+    `,
+    [seasonStr]
+  );
+  const competitionId: string = compUpsert.rows[0].id;
+
+  // 3. Upsert Teams
+  const teamIdMap = new Map<number, string>(); // external_id -> db UUID
+  for (const team of teams) {
+    const teamUpsert = await query(
       `
-      INSERT INTO competitions (external_id, name, code, season)
-      VALUES (2021, 'Premier League', 'PL', $1)
+      INSERT INTO teams (external_id, name, short_name, tla, crest_url)
+      VALUES ($1, $2, $3, $4, $5)
       ON CONFLICT (external_id) DO UPDATE SET
         name = EXCLUDED.name,
-        code = EXCLUDED.code,
-        season = EXCLUDED.season,
+        short_name = EXCLUDED.short_name,
+        tla = EXCLUDED.tla,
+        crest_url = EXCLUDED.crest_url,
         updated_at = NOW()
-      RETURNING id;
+      RETURNING id, external_id;
       `,
-      [seasonStr]
+      [team.id, team.name, team.shortName, team.tla, team.crest]
     );
-    const competitionId: string = compUpsert.rows[0].id;
+    teamIdMap.set(team.id, teamUpsert.rows[0].id);
+  }
 
-    // Clean old fixtures and gameweeks for this competition before populating current season
-    await client.query('DELETE FROM fixtures WHERE gameweek_id IN (SELECT id FROM gameweeks WHERE competition_id = $1)', [competitionId]);
-    await client.query('DELETE FROM gameweeks WHERE competition_id = $1', [competitionId]);
+  // 4. Group fixtures by gameweek to calculate gameweek deadlines and completion
+  const gameweekMap = new Map<number, typeof fixtures>();
+  for (const f of fixtures) {
+    const gw = f.gameweek || 1;
+    const group = gameweekMap.get(gw) || [];
+    group.push(f);
+    gameweekMap.set(gw, group);
+  }
 
-    // 3. Upsert Teams
-    const teamIdMap = new Map<number, string>(); // external_id -> db UUID
-    for (const team of teams) {
-      const teamUpsert = await client.query(
-        `
-        INSERT INTO teams (external_id, name, short_name, tla, crest_url)
-        VALUES ($1, $2, $3, $4, $5)
-        ON CONFLICT (external_id) DO UPDATE SET
-          name = EXCLUDED.name,
-          short_name = EXCLUDED.short_name,
-          tla = EXCLUDED.tla,
-          crest_url = EXCLUDED.crest_url,
-          updated_at = NOW()
-        RETURNING id, external_id;
-        `,
-        [
-          team.id,
-          team.name,
-          team.shortName,
-          team.tla,
-          team.crest,
-        ]
-      );
-      teamIdMap.set(team.id, teamUpsert.rows[0].id);
+  // 5. Upsert Gameweeks
+  const gameweekIdMap = new Map<number, string>(); // gameweek_number -> gameweek UUID
+  for (const [gwNumber, gwFixtures] of gameweekMap.entries()) {
+    const sortedKickoffs = gwFixtures
+      .map((f) => new Date(f.utcDate).getTime())
+      .sort((a, b) => a - b);
+    const earliestDeadline = new Date(sortedKickoffs[0] || Date.now()).toISOString();
+    const isCurrent = gwNumber === currentGameweek;
+    const isCompleted =
+      gwNumber < currentGameweek ||
+      gwFixtures.every((f) => ['FINISHED', 'FT', 'AWARDED'].includes(f.status));
+
+    const gwUpsert = await query(
+      `
+      INSERT INTO gameweeks (competition_id, gameweek_number, deadline, is_current, is_completed)
+      VALUES ($1, $2, $3, $4, $5)
+      ON CONFLICT (competition_id, gameweek_number) DO UPDATE SET
+        deadline = EXCLUDED.deadline,
+        is_current = EXCLUDED.is_current,
+        is_completed = EXCLUDED.is_completed,
+        updated_at = NOW()
+      RETURNING id, gameweek_number;
+      `,
+      [competitionId, gwNumber, earliestDeadline, isCurrent, isCompleted]
+    );
+    gameweekIdMap.set(gwNumber, gwUpsert.rows[0].id);
+  }
+
+  // 6. Fetch existing DB fixtures for comparison
+  const existingFixturesRes = await query<{
+    id: string;
+    external_id: number;
+    status: MatchStatus;
+    home_score: number | null;
+    away_score: number | null;
+    settled_at: string | null;
+  }>('SELECT id, external_id, status, home_score, away_score, settled_at FROM fixtures');
+
+  const existingMap = new Map<number, typeof existingFixturesRes.rows[number]>();
+  for (const row of existingFixturesRes.rows) {
+    existingMap.set(row.external_id, row);
+  }
+
+  let fixtureCount = 0;
+  let settledCount = 0;
+  let liveCount = 0;
+
+  for (const f of fixtures) {
+    const homeTeamId = teamIdMap.get(f.homeTeam.id);
+    const awayTeamId = teamIdMap.get(f.awayTeam.id);
+    const gameweekId = gameweekIdMap.get(f.gameweek);
+
+    if (!homeTeamId || !awayTeamId || !gameweekId) {
+      continue;
     }
 
-    // 4. Group fixtures by gameweek to calculate gameweek deadlines
-    const gameweekMap = new Map<number, typeof fixtures>();
-    for (const f of fixtures) {
-      const gw = f.gameweek || 1;
-      const group = gameweekMap.get(gw) || [];
-      group.push(f);
-      gameweekMap.set(gw, group);
-    }
+    const normalizedStatus = mapApiStatusToMatchStatus(f.status);
+    const existing = existingMap.get(f.id);
 
-    // 5. Upsert Gameweeks
-    const gameweekIdMap = new Map<number, string>(); // gameweek_number -> gameweek UUID
-    for (const [gwNumber, gwFixtures] of gameweekMap.entries()) {
-      const sortedKickoffs = gwFixtures
-        .map((f) => new Date(f.utcDate).getTime())
-        .sort((a, b) => a - b);
-      const earliestDeadline = new Date(sortedKickoffs[0] || Date.now()).toISOString();
-      const isCurrent = gwNumber === currentGameweek;
-      const isCompleted = gwFixtures.every((f) => f.status === 'FINISHED');
+    let fixtureId = existing?.id;
 
-      const gwUpsert = await client.query(
-        `
-        INSERT INTO gameweeks (competition_id, gameweek_number, deadline, is_current, is_completed)
-        VALUES ($1, $2, $3, $4, $5)
-        ON CONFLICT (competition_id, gameweek_number) DO UPDATE SET
-          deadline = EXCLUDED.deadline,
-          is_current = EXCLUDED.is_current,
-          is_completed = EXCLUDED.is_completed,
-          updated_at = NOW()
-        RETURNING id, gameweek_number;
-        `,
-        [competitionId, gwNumber, earliestDeadline, isCurrent, isCompleted]
-      );
-      gameweekIdMap.set(gwNumber, gwUpsert.rows[0].id);
-    }
-
-    // 6. Upsert Fixtures
-    let fixtureCount = 0;
-    for (const f of fixtures) {
-      const homeTeamId = teamIdMap.get(f.homeTeam.id);
-      const awayTeamId = teamIdMap.get(f.awayTeam.id);
-      const gameweekId = gameweekIdMap.get(f.gameweek);
-
-      if (!homeTeamId || !awayTeamId || !gameweekId) {
-        continue;
-      }
-
-      await client.query(
+    if (!existing) {
+      // Insert new fixture
+      const insertRes = await query<{ id: string }>(
         `
         INSERT INTO fixtures (
           external_id,
@@ -138,7 +173,8 @@ export async function syncFootballData(competitionCode = 'PL'): Promise<SyncResu
           status = EXCLUDED.status,
           home_score = EXCLUDED.home_score,
           away_score = EXCLUDED.away_score,
-          updated_at = NOW();
+          updated_at = NOW()
+        RETURNING id;
         `,
         [
           f.id,
@@ -146,25 +182,96 @@ export async function syncFootballData(competitionCode = 'PL'): Promise<SyncResu
           homeTeamId,
           awayTeamId,
           f.utcDate,
-          f.status as MatchStatus,
+          normalizedStatus,
           f.homeScore,
           f.awayScore,
         ]
       );
-      fixtureCount++;
+      fixtureId = insertRes.rows[0]?.id;
+    } else {
+      // Update kickoff time if rescheduled
+      await query(
+        `
+        UPDATE fixtures
+        SET kickoff_time = $1, gameweek_id = $2
+        WHERE id = $3 AND (kickoff_time != $1 OR gameweek_id != $2)
+        `,
+        [f.utcDate, gameweekId, existing.id]
+      );
     }
 
-    console.log(
-      `[FootballSync] Current season synced: ${teams.length} teams, ${gameweekMap.size} gameweeks, ${fixtureCount} fixtures. Current Matchday: GW ${currentGameweek}`
-    );
+    fixtureCount++;
 
-    return {
-      competitionId,
-      syncedTeams: teams.length,
-      syncedGameweeks: gameweekMap.size,
-      syncedFixtures: fixtureCount,
-      currentGameweek,
-      timestamp: new Date().toISOString(),
-    };
-  });
+    if (!fixtureId) continue;
+
+    // 7. Handle Settlement and Live Scores
+    if (normalizedStatus === 'FINISHED') {
+      const needsSettlement = !existing?.settled_at || existing.status !== 'FINISHED';
+      if (needsSettlement) {
+        try {
+          console.log(`[FootballSync] Settling fixture ${fixtureId} (${f.homeTeam.name} vs ${f.awayTeam.name}) at ${f.homeScore}-${f.awayScore}...`);
+          await query('SELECT settle_fixture($1, $2, $3)', [
+            fixtureId,
+            f.homeScore ?? 0,
+            f.awayScore ?? 0,
+          ]);
+          settledCount++;
+        } catch (settleErr) {
+          console.error(`[FootballSync] Error settling fixture ${fixtureId}:`, settleErr);
+        }
+      } else if (
+        existing.home_score !== f.homeScore ||
+        existing.away_score !== f.awayScore
+      ) {
+        // Score corrected post-match
+        await query(
+          `UPDATE fixtures SET home_score = $1, away_score = $2, updated_at = NOW() WHERE id = $3`,
+          [f.homeScore, f.awayScore, fixtureId]
+        );
+      }
+    } else if (normalizedStatus === 'LIVE') {
+      liveCount++;
+      await query(
+        `
+        UPDATE fixtures
+        SET status = 'LIVE',
+            home_score = $1,
+            away_score = $2,
+            updated_at = NOW()
+        WHERE id = $3 AND (status != 'LIVE' OR home_score IS DISTINCT FROM $1 OR away_score IS DISTINCT FROM $2)
+        `,
+        [f.homeScore, f.awayScore, fixtureId]
+      );
+    } else if (normalizedStatus === 'POSTPONED' || normalizedStatus === 'CANCELLED') {
+      if (existing && existing.status !== normalizedStatus) {
+        try {
+          console.log(`[FootballSync] Voiding fixture ${fixtureId}...`);
+          await query('SELECT void_fixture($1)', [fixtureId]);
+        } catch (voidErr) {
+          console.error(`[FootballSync] Error voiding fixture ${fixtureId}:`, voidErr);
+        }
+      }
+    } else if (normalizedStatus === 'SCHEDULED' && existing && existing.status === 'LIVE') {
+      // Reverted from live
+      await query(
+        `UPDATE fixtures SET status = 'SCHEDULED', home_score = NULL, away_score = NULL, updated_at = NOW() WHERE id = $1`,
+        [fixtureId]
+      );
+    }
+  }
+
+  console.log(
+    `[FootballSync] Current season synced: ${teams.length} teams, ${gameweekMap.size} gameweeks, ${fixtureCount} fixtures (${settledCount} newly settled, ${liveCount} live). Active Matchday: GW ${currentGameweek}`
+  );
+
+  return {
+    competitionId,
+    syncedTeams: teams.length,
+    syncedGameweeks: gameweekMap.size,
+    syncedFixtures: fixtureCount,
+    settledFixtures: settledCount,
+    liveFixtures: liveCount,
+    currentGameweek,
+    timestamp: new Date().toISOString(),
+  };
 }

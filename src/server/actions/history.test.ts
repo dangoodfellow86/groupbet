@@ -51,7 +51,7 @@ async function runTests() {
       SELECT f.id, f.home_team_id, f.away_team_id, ht.name as home_name
       FROM fixtures f
       JOIN teams ht ON f.home_team_id = ht.id
-      WHERE f.gameweek_id = $1
+      WHERE f.gameweek_id = $1 AND f.status = 'SCHEDULED' AND f.kickoff_time > NOW()
       LIMIT 1;
     `, [gameweek5Id]);
     assert.ok(fixtureRes.rows.length > 0, 'GW 5 fixture should exist');

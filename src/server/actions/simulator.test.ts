@@ -13,13 +13,14 @@ import {
 async function runTests() {
   console.log('🧪 Starting Match Simulator & Settlement Reversal Test Suite...\n');
 
+  const TEST_GW = 38;
   let testLeagueId: string | null = null;
   let testUserId: string | null = null;
   let targetFixtureId: string | null = null;
 
   try {
-    // 1. Fetch a Gameweek 5 Fixture for Testing
-    console.log('1. Fetching a Gameweek 5 fixture...');
+    // 1. Fetch a Gameweek 38 Fixture for Testing (avoids modifying live in-season gameweeks)
+    console.log(`1. Fetching a Gameweek ${TEST_GW} fixture...`);
     const fixRes = await query(
       `
       SELECT f.id, f.home_team_id, f.away_team_id, t_home.name AS home_name, t_away.name AS away_name
@@ -27,12 +28,13 @@ async function runTests() {
       JOIN gameweeks gw ON f.gameweek_id = gw.id
       JOIN teams t_home ON f.home_team_id = t_home.id
       JOIN teams t_away ON f.away_team_id = t_away.id
-      WHERE gw.gameweek_number = 5
+      WHERE gw.gameweek_number = $1
       LIMIT 1;
-      `
+      `,
+      [TEST_GW]
     );
 
-    assert.ok(fixRes.rows.length > 0, 'Should find at least 1 fixture in GW 5');
+    assert.ok(fixRes.rows.length > 0, `Should find at least 1 fixture in GW ${TEST_GW}`);
     const targetFixture = fixRes.rows[0];
     targetFixtureId = targetFixture.id;
     console.log(`   ✅ Target fixture: ${targetFixture.home_name} vs ${targetFixture.away_name} (${targetFixtureId})`);
@@ -47,7 +49,7 @@ async function runTests() {
       type: 'ALL_IN_ONE',
       creatorDisplayName: hostName,
       creatorEmail: hostEmail,
-      startingGameweek: 5,
+      startingGameweek: TEST_GW,
       startingLives: 2,
     });
 
@@ -68,8 +70,8 @@ async function runTests() {
     assert.ok(predRes.success, 'Predictor pick should be submitted');
 
     // Submit LMS pick on Home team
-    const gwRes = await query(`SELECT id FROM gameweeks WHERE gameweek_number = 5`);
-    const gw5Id = gwRes.rows[0].id;
+    const gwRes = await query(`SELECT id FROM gameweeks WHERE gameweek_number = $1`, [TEST_GW]);
+    const gwTestId = gwRes.rows[0].id;
 
     await query(
       `
@@ -77,7 +79,7 @@ async function runTests() {
       VALUES ($1, $2, $3, 'PENDING')
       ON CONFLICT (entry_id, gameweek_id) DO UPDATE SET team_id = EXCLUDED.team_id, result = 'PENDING';
       `,
-      [leagueRes.entryId!, gw5Id, targetFixture.home_team_id]
+      [leagueRes.entryId!, gwTestId, targetFixture.home_team_id]
     );
     console.log('   ✅ Test league, Predictor picks (2-1), and LMS pick (Home team) initialized');
 
@@ -124,7 +126,7 @@ async function runTests() {
     // Verify LMS Pick survived
     const lmsPickCheck = await query(
       `SELECT result FROM lms_picks WHERE entry_id = $1 AND gameweek_id = $2`,
-      [leagueRes.entryId!, gw5Id]
+      [leagueRes.entryId!, gwTestId]
     );
     assert.equal(lmsPickCheck.rows[0].result, 'SURVIVED');
     console.log('   ✅ Match settled FT: Predictor Leaderboard awarded 6 pts, LMS pick SURVIVED');
@@ -151,30 +153,32 @@ async function runTests() {
     // Verify LMS pick reverted to PENDING
     const lmsResetPickCheck = await query(
       `SELECT result FROM lms_picks WHERE entry_id = $1 AND gameweek_id = $2`,
-      [leagueRes.entryId!, gw5Id]
+      [leagueRes.entryId!, gwTestId]
     );
     assert.equal(lmsResetPickCheck.rows[0].result, 'PENDING');
     console.log('   ✅ Match cleanly reverted: Points rolled back to 0, LMS pick restored to PENDING');
 
     // 6. Test Gameweek Simulation and Gameweek Revert
-    console.log('\n6. Testing simulateEntireGameweek & resetEntireGameweek...');
-    const gwSimRes = await simulateEntireGameweek(5);
+    console.log(`\n6. Testing simulateEntireGameweek & resetEntireGameweek for GW ${TEST_GW}...`);
+    const gwSimRes = await simulateEntireGameweek(TEST_GW);
     assert.ok(gwSimRes.success, gwSimRes.message);
 
     const checkAllFinished = await query(
-      `SELECT COUNT(*)::int AS finished_count FROM fixtures f JOIN gameweeks gw ON f.gameweek_id = gw.id WHERE gw.gameweek_number = 5 AND f.status = 'FINISHED'`
+      `SELECT COUNT(*)::int AS finished_count FROM fixtures f JOIN gameweeks gw ON f.gameweek_id = gw.id WHERE gw.gameweek_number = $1 AND f.status = 'FINISHED'`,
+      [TEST_GW]
     );
-    assert.ok(checkAllFinished.rows[0].finished_count >= 10, 'All 10 fixtures should be FINISHED');
-    console.log(`   ✅ Simulated full GW5: ${checkAllFinished.rows[0].finished_count} fixtures finished`);
+    assert.ok(checkAllFinished.rows[0].finished_count >= 10, `All 10 fixtures should be FINISHED`);
+    console.log(`   ✅ Simulated full GW${TEST_GW}: ${checkAllFinished.rows[0].finished_count} fixtures finished`);
 
-    const gwResetRes = await resetEntireGameweek(5);
+    const gwResetRes = await resetEntireGameweek(TEST_GW);
     assert.ok(gwResetRes.success, gwResetRes.message);
 
     const checkAllScheduled = await query(
-      `SELECT COUNT(*)::int AS scheduled_count FROM fixtures f JOIN gameweeks gw ON f.gameweek_id = gw.id WHERE gw.gameweek_number = 5 AND f.status = 'SCHEDULED'`
+      `SELECT COUNT(*)::int AS scheduled_count FROM fixtures f JOIN gameweeks gw ON f.gameweek_id = gw.id WHERE gw.gameweek_number = $1 AND f.status = 'SCHEDULED'`,
+      [TEST_GW]
     );
-    assert.ok(checkAllScheduled.rows[0].scheduled_count >= 10, 'All 10 fixtures should be restored to SCHEDULED');
-    console.log(`   ✅ Reset full GW5: ${checkAllScheduled.rows[0].scheduled_count} fixtures restored to SCHEDULED`);
+    assert.ok(checkAllScheduled.rows[0].scheduled_count >= 10, `All 10 fixtures should be restored to SCHEDULED`);
+    console.log(`   ✅ Reset full GW${TEST_GW}: ${checkAllScheduled.rows[0].scheduled_count} fixtures restored to SCHEDULED`);
 
     // 7. Clean up test records
     console.log('\n7. Cleaning up test data...');

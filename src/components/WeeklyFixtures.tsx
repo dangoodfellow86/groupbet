@@ -74,6 +74,20 @@ export function WeeklyFixtures({
   };
 
   const { data, isLoading, isError, error, refetch, isFetching } = useGameweekFixtures(currentGameweek);
+  const [isManualSyncing, setIsManualSyncing] = useState(false);
+
+  const handleRefresh = async () => {
+    setIsManualSyncing(true);
+    try {
+      await fetch(`/api/fixtures?gw=${currentGameweek}&refresh=true`);
+      await refetch();
+    } catch (e) {
+      console.warn('Manual sync failed:', e);
+      refetch();
+    } finally {
+      setIsManualSyncing(false);
+    }
+  };
 
   const fixtures = data?.fixtures || [];
   const liveCount = fixtures.filter((f) => f.status === 'LIVE').length;
@@ -94,9 +108,10 @@ export function WeeklyFixtures({
     return acc;
   }, {});
 
-  const isPastGameweek = currentGameweek < 5;
-  const isActiveGameweek = currentGameweek === 5;
-  const isFutureGameweek = currentGameweek > 5;
+  const activeGameweek = data?.activeGameweek ?? 5;
+  const isPastGameweek = currentGameweek < activeGameweek;
+  const isActiveGameweek = currentGameweek === activeGameweek;
+  const isFutureGameweek = currentGameweek > activeGameweek;
 
   return (
     <div className="flex flex-col gap-5">
@@ -171,12 +186,13 @@ export function WeeklyFixtures({
 
           <button
             type="button"
-            onClick={() => refetch()}
-            className="p-2 rounded-xl border border-neutral-800 bg-neutral-950 hover:bg-neutral-800 text-neutral-400 hover:text-neutral-200 transition-colors cursor-pointer"
-            title="Refresh fixtures"
-            aria-label="Refresh fixtures"
+            onClick={handleRefresh}
+            disabled={isFetching || isManualSyncing}
+            className="p-2 rounded-xl border border-neutral-800 bg-neutral-950 hover:bg-neutral-800 text-neutral-400 hover:text-neutral-200 transition-colors cursor-pointer disabled:opacity-50"
+            title="Refresh fixtures & sync latest live scores"
+            aria-label="Refresh fixtures & sync latest live scores"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${isFetching ? 'animate-spin text-emerald-400' : ''}`} />
+            <RefreshCw className={`w-3.5 h-3.5 ${isFetching || isManualSyncing ? 'animate-spin text-emerald-400' : ''}`} />
           </button>
         </div>
       </div>
