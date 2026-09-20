@@ -16,7 +16,12 @@ async function handleSync(req: NextRequest) {
 
   // Verify secret if configured in environment
   if (cronSecret) {
-    const isVercelCron = req.headers.get('x-vercel-cron') === '1';
+    const userAgent = req.headers.get('user-agent') || '';
+    const hasCronSchedule = Boolean(req.headers.get('x-vercel-cron-schedule'));
+    const isVercelCron =
+      req.headers.get('x-vercel-cron') === '1' ||
+      userAgent.includes('vercel-cron') ||
+      hasCronSchedule;
     const isBearerValid = authHeader === `Bearer ${cronSecret}`;
     const isQueryValid = querySecret === cronSecret;
 
