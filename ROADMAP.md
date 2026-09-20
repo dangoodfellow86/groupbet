@@ -120,6 +120,71 @@ The React Native mobile app will leverage the **existing GroupBet production bac
 
 ---
 
+## 💰 Revenue Generation & Monetization Models
+
+GroupBet has multiple synergistic paths to revenue that scale with user growth, ranging from low-compliance SaaS subscriptions to high-margin sportsbook partnerships.
+
+```
+                         ┌──────────────────────────────────────────────┐
+                         │         GroupBet Monetization Engines        │
+                         └──────┬────────────┬────────────┬─────────────┘
+                                │            │            │
+             ┌──────────────────┴──┐  ┌──────┴──────┐  ┌──┴──────────────────┐
+             │ B2C: Subscriptions  │  │  Platform   │  │   B2B & Affiliates  │
+             │   & Freemium Pro    │  │  Pot Fees   │  │ (Pubs, Odds, Brands)│
+             └─────────────────────┘  └─────────────┘  └─────────────────────┘
+```
+
+### 1. GroupBet Pro & Commissioner Pass (Freemium SaaS / IAP)
+* **Free Tier:** Free for up to 10–12 players per group with standard LMS and Predictor formats.
+* **GroupBet Pro / Commissioner Pass** (£3.99/month or £24.99/season):
+  - **Unlimited League Capacity:** Essential for company offices, sports clubs, fraternities, and pub crowds.
+  - **Advanced Edge & Analytics:** In-depth form guides, expected goals (xG) statistics, group consensus picks, and opponent pick history.
+  - **Custom Rules & Formats:** Configure second-chance buybacks, custom live point weightings, and custom tie-breaking algorithms.
+  - **Custom Branding:** Upload office or club logos to custom league headers, shareable recap cards, and leaderboards.
+  - **Automated Broadcast Nudges:** Automated WhatsApp and priority push reminders broadcast to all league members.
+
+---
+
+### 2. Group Pot & Prize Platform Fee (Contest Host)
+Many groups play with a voluntary entry fee (e.g. £10 or £20 per player):
+* **Level 1 — Peer-to-Peer Pot Tracker (Low Regulatory Barrier):**
+  - GroupBet tracks member payment status (Paid / Pending) and payout math (1st, 2nd, highest single-round score), while users settle payments peer-to-peer (Monzo, Revolut, PayPal). Included with Commissioner Pass.
+* **Level 2 — Integrated Escrow Pot (Platform Take Rate / Rake):**
+  - In-app payment collection via Stripe / Open Banking.
+  - GroupBet automatically holds the prize pool in escrow and distributes payouts to winners, taking a **5%–8% platform hosting fee**.
+
+---
+
+### 3. Sportsbook & Affiliate Partnerships (High-Margin Lead Gen)
+In regulated markets (e.g. UK, EU, US states):
+* **Live Odds & One-Click Acca Deep-Links:**
+  - Display odds beside fixtures on the pick sheet (e.g. "Odds via SkyBet / Bet365 / Paddy Power").
+  - A "Bet My Picks" button that exports the user's predictor selections directly into an accumulator slip on a partner bookmaker.
+  - Generates **Cost-Per-Acquisition (CPA)** fees (£25–£60+ per qualifying new depositor) or lifetime revenue share.
+* **Contextual Free Bets:**
+  - Promotional partner banners (e.g. *"Bet £10 get £40 in free bets"*).
+
+---
+
+### 4. B2B Pub, Sports Bar & Corporate Packages
+* **"Pub League" Venue Subscription** (£29–£59/month per venue):
+  - Local sports bars and pubs host an official GroupBet tournament to drive foot traffic on matchdays.
+  - **TV Mode / Big-Screen Dashboard:** A dedicated HDMI / Chromecast presentation view showing live standings and casualty lists on pub screens during matches.
+  - Local venue rewards (e.g., *"Top scorer this month wins a £30 bar tab"*).
+* **Corporate Office Package:**
+  - Team-building and employee engagement portal for companies with single-sign-on (SSO) and company-wide leaderboards.
+
+---
+
+### 5. Sponsored Community Tournaments
+* **Free-to-Play Open Jackpots:**
+  - Public season-long or cup tournaments open to all GroupBet players with no entry fee.
+  - Sponsored by brands (e.g., sports nutrition, fan apparel, beer brands, media outlets).
+  - Sponsors fund real prizes (e.g., Premier League tickets, retro shirts, gaming consoles) in exchange for title sponsorship and direct in-app exposure.
+
+---
+
 ## 📋 Suggested Implementation Phases
 
 | Phase | Focus | Key Deliverables |
@@ -128,4 +193,6 @@ The React Native mobile app will leverage the **existing GroupBet production bac
 | **Phase B** | **Matchday Live Hub** | Live matchday screen, real-time score badges, live leaderboard rollups |
 | **Phase C** | **Automated Alerts & Digest** | Gameweek deadline reminders, WhatsApp nudge improvements, recap digest |
 | **Phase D** | **React Native / Expo App** | Expo cross-platform app, native push notifications, App Store / TestFlight |
-| **Phase E** | **Social Banter & Power-Ups** | In-league activity feed, reactions, predictor power-ups, pot tracker |
+| **Phase E** | **Monetization: GroupBet Pro** | Player caps, Commissioner Pass, custom branding, Stripe / Apple IAP |
+| **Phase F** | **Affiliate & B2B Venues** | TV display mode for pubs, odds deep-links, sponsored tournament jackpots |
+
