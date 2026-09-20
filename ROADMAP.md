@@ -81,9 +81,29 @@ The React Native mobile app will leverage the **existing GroupBet production bac
 - **Banter & Emoji Reactions:**
   - Allow league members to react (😂, 🔥, 💀, 🍿, 👏) and leave short banter comments on picks, close misses, and eliminations.
 
+### 4. Social Authentication & Profile Enrichment (Google, Apple, Facebook)
+> **Goal:** Slash registration friction down to a 1-tap experience and automatically build vibrant, recognizable player profiles.
+
+- **1-Tap Social Providers:**
+  - **Google Sign-In:** One-tap sign-in on web and Android; auto-syncs user's real name and Google profile photo.
+  - **Sign in with Apple:** Frictionless FaceID / TouchID biometric login on iOS devices and web; supports Apple private relay emails; satisfies mandatory **Apple App Store Guideline 4.8**.
+  - **Facebook Login:** Popular for social football communities; extracts verified email, display name, and Facebook profile picture.
+- **Automated Profile Enrichment Pipeline:**
+  - On OAuth callback or ID token verification, Supabase extracts provider metadata (`picture`, `avatar_url`, `full_name`).
+  - `syncAuthenticatedUser` immediately stores the real high-res profile photo into `users.avatar_url`, replacing robot/dicebear placeholders with real avatars across:
+    - **Survivor Board & LMS Roster**
+    - **Predictor Leaderboards**
+    - **Fixture Pick Ownership Badges**
+    - **Trophy Cabinet & Career Stats Header**
+  - Auto-fills display name and marks email as verified with zero confirmation friction.
+  - **Seamless Guest Account Claiming:** If a player previously joined a league as a guest with their Gmail or Apple ID, signing in via social auth instantly claims and links their tournament entries, lives, and predictions.
+- **Cross-Platform Parity:**
+  - **Next.js Web:** Supabase OAuth redirect flow via `/api/auth/callback`.
+  - **React Native (Expo):** Native sheets via `expo-apple-authentication` and `@react-native-google-signin/google-signin` passing cryptographic ID tokens directly to `supabase.auth.signInWithIdToken()`.
+
 ---
 
-### 4. Progressive Web App (PWA) Installability (Web Quick-Win)
+### 5. Progressive Web App (PWA) Installability (Web Quick-Win)
 > **Goal:** Provide an immediate app-like mobile experience on web while React Native is developed.
 
 - **Add to Home Screen (A2HS):**
@@ -95,7 +115,7 @@ The React Native mobile app will leverage the **existing GroupBet production bac
 
 ---
 
-### 5. Tournament Variations & Strategic Power-Ups
+### 6. Tournament Variations & Strategic Power-Ups
 > **Goal:** Retain players even if they fall behind early in a long 38-game season.
 
 - **Predictor Power-Ups (1–2 single-use tokens per season):**
@@ -108,7 +128,7 @@ The React Native mobile app will leverage the **existing GroupBet production bac
 
 ---
 
-### 6. Team & Match Analytics / Form Guide
+### 7. Team & Match Analytics / Form Guide
 > **Goal:** Help players make smart picks without having to leave the app.
 
 - **Recent Form Badges:**
@@ -189,10 +209,12 @@ In regulated markets (e.g. UK, EU, US states):
 
 | Phase | Focus | Key Deliverables |
 | :--- | :--- | :--- |
-| **Phase A** | **Mobile Web Polish & PWA** | PWA manifest, app icons, touch optimizations, offline fallback |
-| **Phase B** | **Matchday Live Hub** | Live matchday screen, real-time score badges, live leaderboard rollups |
-| **Phase C** | **Automated Alerts & Digest** | Gameweek deadline reminders, WhatsApp nudge improvements, recap digest |
-| **Phase D** | **React Native / Expo App** | Expo cross-platform app, native push notifications, App Store / TestFlight |
-| **Phase E** | **Monetization: GroupBet Pro** | Player caps, Commissioner Pass, custom branding, Stripe / Apple IAP |
-| **Phase F** | **Affiliate & B2B Venues** | TV display mode for pubs, odds deep-links, sponsored tournament jackpots |
+| **Phase A** | **Social Auth & Profile Pictures** | Google, Apple, Facebook OAuth, auto profile picture syncing, 1-tap onboarding |
+| **Phase B** | **Mobile Web Polish & PWA** | PWA manifest, app icons, touch optimizations, offline fallback |
+| **Phase C** | **Matchday Live Hub** | Live matchday screen, real-time score badges, live leaderboard rollups |
+| **Phase D** | **Automated Alerts & Digest** | Gameweek deadline reminders, WhatsApp nudge improvements, recap digest |
+| **Phase E** | **React Native / Expo App** | Expo cross-platform app, native push notifications, App Store / TestFlight |
+| **Phase F** | **Monetization: GroupBet Pro** | Player caps, Commissioner Pass, custom branding, Stripe / Apple IAP |
+| **Phase G** | **Affiliate & B2B Venues** | TV display mode for pubs, odds deep-links, sponsored tournament jackpots |
+
 
