@@ -3,7 +3,7 @@
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { getLeagueSurvivorBoard, SurvivorBoardPlayer } from '@/server/actions/leagues';
-import { Shield, Heart, Skull, Crown, Lock, Users, Share2, AlertCircle, History, MessageCircle } from 'lucide-react';
+import { Shield, Heart, Skull, Crown, Lock, Users, Share2, AlertCircle, History, MessageCircle, Flame } from 'lucide-react';
 import Image from 'next/image';
 import { StandingsShareItem } from '@/lib/sharing';
 
@@ -11,6 +11,8 @@ interface SurvivorBoardProps {
   leagueId: string;
   gameweekNumber: number;
   currentUserId?: string;
+  burnedCount?: number;
+  availableCount?: number;
   onInviteClick?: () => void;
   onViewHistoryClick?: () => void;
   onShareStandingsClick?: (standings: StandingsShareItem[]) => void;
@@ -20,6 +22,8 @@ export function SurvivorBoard({
   leagueId,
   gameweekNumber,
   currentUserId,
+  burnedCount,
+  availableCount,
   onInviteClick,
   onViewHistoryClick,
   onShareStandingsClick,
@@ -56,11 +60,20 @@ export function SurvivorBoard({
             <Shield className="w-4 h-4" />
           </div>
           <div>
-            <h3 className="text-sm font-bold text-neutral-100 flex items-center gap-2">
+            <h3 className="text-sm font-bold text-neutral-100 flex items-center gap-2 flex-wrap">
               <span>Survivor Board</span>
               <span className="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
                 GW {gameweekNumber}
               </span>
+              {typeof burnedCount === 'number' && burnedCount > 0 && (
+                <span
+                  className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 flex items-center gap-1"
+                  title={`${burnedCount} team${burnedCount === 1 ? '' : 's'} burned this round (${availableCount !== undefined ? availableCount : (20 - burnedCount)} remaining)`}
+                >
+                  <Flame className="w-3 h-3 text-amber-500" />
+                  <span>{burnedCount} Burned</span>
+                </span>
+              )}
             </h3>
             <p className="text-[11px] text-neutral-400">
               {aliveCount} Alive • {eliminatedCount} Eliminated

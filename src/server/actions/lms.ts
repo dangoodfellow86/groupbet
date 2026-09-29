@@ -19,6 +19,140 @@ export interface SubmitLmsPickResult {
   livesRemaining?: number;
 }
 
+export interface UserLmsRoundPicksResult {
+  success: boolean;
+  roundNumber: number;
+  picksByGameweek: Record<number, {
+    pickId: string;
+    teamId: string;
+    teamExternalId: number;
+    teamName: string;
+    teamTla: string;
+    crestUrl: string;
+    gameweekNumber: number;
+    result: string;
+    isKickoffPassed: boolean;
+  }>;
+  burnedTeamIds: string[];
+  burnedCount: number;
+  availableCount: number;
+  message?: string;
+}
+
+/**
+ * Server Action: Retrieve all LMS picks made by the user in the active tournament round
+ * for a specific league, returning burned team IDs and a map of picks by gameweek.
+ */
+export async function getUserLmsRoundPicks(
+  leagueId: string,
+  viewingUserId?: string
+): Promise<UserLmsRoundPicksResult> {
+  try {
+    let userId = viewingUserId;
+    if (!userId) {
+      try {
+        const { getCurrentUser } = await import('@/server/auth/session');
+        const user = await getCurrentUser();
+        if (user) userId = user.id;
+      } catch {
+        // Fallback
+      }
+    }
+
+    if (!userId) {
+      return {
+        success: true,
+        roundNumber: 1,
+        picksByGameweek: {},
+        burnedTeamIds: [],
+        burnedCount: 0,
+        availableCount: 20,
+      };
+    }
+
+    // 1. Fetch league round
+    const leagueRes = await query(
+      `SELECT current_round FROM leagues WHERE id::text = $1 LIMIT 1`,
+      [leagueId]
+    );
+    const roundNumber = leagueRes.rows[0]?.current_round || 1;
+
+    // 2. Fetch user's picks in this round
+    const sql = `
+      SELECT 
+        p.id AS pick_id,
+        p.team_id,
+        p.result,
+        gw.gameweek_number,
+        t.name AS team_name,
+        t.tla AS team_tla,
+        t.crest_url,
+        t.external_id AS team_external_id,
+        f.kickoff_time
+      FROM lms_picks p
+      JOIN lms_entries e ON p.entry_id = e.id
+      JOIN gameweeks gw ON p.gameweek_id = gw.id
+      JOIN teams t ON p.team_id = t.id
+      LEFT JOIN fixtures f ON f.gameweek_id = gw.id AND (f.home_team_id = t.id OR f.away_team_id = t.id)
+      WHERE e.league_id::text = $1
+        AND e.user_id::text = $2
+        AND p.round_number = $3
+      ORDER BY gw.gameweek_number ASC;
+    `;
+    const picksRes = await query(sql, [leagueId, userId, roundNumber]);
+
+    const picksByGameweek: UserLmsRoundPicksResult['picksByGameweek'] = {};
+    const burnedTeamIdsSet = new Set<string>();
+    const now = Date.now();
+
+    for (const r of picksRes.rows) {
+      const isKickoffPassed = r.kickoff_time
+        ? new Date(r.kickoff_time).getTime() <= now
+        : false;
+
+      picksByGameweek[r.gameweek_number] = {
+        pickId: r.pick_id,
+        teamId: r.team_id,
+        teamExternalId: r.team_external_id,
+        teamName: r.team_name,
+        teamTla: r.team_tla,
+        crestUrl: r.crest_url,
+        gameweekNumber: r.gameweek_number,
+        result: r.result,
+        isKickoffPassed,
+      };
+
+      burnedTeamIdsSet.add(String(r.team_id));
+      if (r.team_external_id) {
+        burnedTeamIdsSet.add(String(r.team_external_id));
+      }
+    }
+
+    const burnedCount = Object.keys(picksByGameweek).length;
+    const availableCount = Math.max(0, 20 - burnedCount);
+
+    return {
+      success: true,
+      roundNumber,
+      picksByGameweek,
+      burnedTeamIds: Array.from(burnedTeamIdsSet),
+      burnedCount,
+      availableCount,
+    };
+  } catch (error: any) {
+    console.error('[getUserLmsRoundPicks] Error:', error);
+    return {
+      success: false,
+      roundNumber: 1,
+      picksByGameweek: {},
+      burnedTeamIds: [],
+      burnedCount: 0,
+      availableCount: 20,
+      message: error?.message || 'Failed to fetch user LMS picks.',
+    };
+  }
+}
+
 /**
  * Server Action: Submit or update an LMS pick with full rule validation.
  */
@@ -73,10 +207,31 @@ export async function submitLmsPick(
         throw new Error('Your entry has been eliminated from this tournament (0 lives remaining).');
       }
 
-      // 3. Enforce gameweek kickoff deadline
+      // 3. Resolve Team to database UUID
+      const teamRes = await client.query(
+        `SELECT id, name, external_id FROM teams WHERE id::text = $1 OR external_id::text = $1 LIMIT 1`,
+        [teamId]
+      );
+      if (teamRes.rows.length === 0) {
+        throw new Error(`Team not found.`);
+      }
+      const actualTeamId = teamRes.rows[0].id;
+      const actualTeamName = teamName || teamRes.rows[0].name;
+
+      // 4. Resolve Gameweek to database UUID
+      const gwRes = await client.query(
+        `SELECT id, gameweek_number FROM gameweeks WHERE id::text = $1 OR gameweek_number::text = $1 LIMIT 1`,
+        [gameweekId]
+      );
+      if (gwRes.rows.length === 0) {
+        throw new Error(`Gameweek not found.`);
+      }
+      const actualGameweekId = gwRes.rows[0].id;
+
+      // 5. Enforce gameweek kickoff deadline & fixture status
       const fixtureRes = await client.query(
         `
-        SELECT kickoff_time, status
+        SELECT id, kickoff_time, status, home_team_id, away_team_id
         FROM fixtures
         WHERE id::text = $1 OR external_id::text = $1
         LIMIT 1;
@@ -84,20 +239,25 @@ export async function submitLmsPick(
         [fixtureId]
       );
 
-      const targetKickoff = fixtureRes.rows[0]?.kickoff_time || kickoffTime;
-      if (targetKickoff) {
-        const kickoffDate = new Date(targetKickoff).getTime();
-        const now = Date.now();
-        if (now >= kickoffDate) {
+      if (fixtureRes.rows.length > 0) {
+        const fixture = fixtureRes.rows[0];
+        if (fixture.home_team_id !== actualTeamId && fixture.away_team_id !== actualTeamId) {
+          throw new Error(`${actualTeamName} does not play in this fixture.`);
+        }
+
+        const targetKickoff = fixture.kickoff_time || kickoffTime;
+        if (targetKickoff && new Date(targetKickoff).getTime() <= Date.now()) {
           throw new Error('Kickoff has already passed. LMS picks are locked.');
         }
+
+        if (fixture.status === 'LIVE' || fixture.status === 'FINISHED') {
+          throw new Error('Match is already in play or finished. Pick cannot be changed.');
+        }
+      } else if (kickoffTime && new Date(kickoffTime).getTime() <= Date.now()) {
+        throw new Error('Kickoff has already passed. LMS picks are locked.');
       }
 
-      if (fixtureRes.rows[0]?.status === 'LIVE' || fixtureRes.rows[0]?.status === 'FINISHED') {
-        throw new Error('Match is already in play or finished. Pick cannot be changed.');
-      }
-
-      // 4. Enforce no-repeat-team constraint
+      // 6. Enforce no-repeat-team constraint (Burned Team Rule)
       const settings = typeof entry.settings === 'string' ? JSON.parse(entry.settings) : entry.settings || {};
       const allowRepeatTeams = settings.allow_repeat_teams === true;
       const exclusiveTeamPicks = settings.exclusive_team_picks ?? true;
@@ -105,25 +265,28 @@ export async function submitLmsPick(
       if (!allowRepeatTeams) {
         const priorPickRes = await client.query(
           `
-          SELECT id, gameweek_id, team_id
-          FROM lms_picks
-          WHERE entry_id = $1 
-            AND gameweek_id::text != $2 
-            AND team_id::text = $3
-            AND round_number = $4
+          SELECT p.id, gw.gameweek_number, t.name AS team_name
+          FROM lms_picks p
+          JOIN gameweeks gw ON p.gameweek_id = gw.id
+          JOIN teams t ON p.team_id = t.id
+          WHERE p.entry_id = $1 
+            AND p.gameweek_id != $2 
+            AND p.team_id = $3
+            AND p.round_number = $4
           LIMIT 1;
           `,
-          [entry.id, gameweekId, teamId, entry.current_round || 1]
+          [entry.id, actualGameweekId, actualTeamId, entry.current_round || 1]
         );
 
         if (priorPickRes.rows.length > 0) {
+          const prior = priorPickRes.rows[0];
           throw new Error(
-            `You have already picked ${teamName || 'this team'} in a previous gameweek of this round. Under LMS rules, each team may only be selected once per tournament round.`
+            `You already picked ${prior.team_name} in Gameweek ${prior.gameweek_number}. Under LMS rules, each team may only be selected once per tournament cycle.`
           );
         }
       }
 
-      // 4b. Enforce exclusive league picks constraint (Draft style / Unique team picks per gameweek)
+      // 7. Enforce exclusive league picks constraint (Draft style / Unique team picks per gameweek)
       if (exclusiveTeamPicks) {
         const leagueClaimRes = await client.query(
           `
@@ -133,25 +296,25 @@ export async function submitLmsPick(
           JOIN users u ON e.user_id = u.id
           JOIN teams t ON p.team_id = t.id
           WHERE e.league_id = $1
-            AND p.gameweek_id::text = $2
-            AND (p.team_id::text = $3 OR t.external_id::text = $3)
+            AND p.gameweek_id = $2
+            AND p.team_id = $3
             AND e.id != $4
             AND e.status != 'ELIMINATED'
           LIMIT 1;
           `,
-          [entry.league_id, gameweekId, teamId, entry.id]
+          [entry.league_id, actualGameweekId, actualTeamId, entry.id]
         );
 
         if (leagueClaimRes.rows.length > 0) {
           const claimedBy = leagueClaimRes.rows[0].display_name;
-          const claimedTeam = leagueClaimRes.rows[0].team_name || teamName || 'This team';
+          const claimedTeam = leagueClaimRes.rows[0].team_name || actualTeamName || 'This team';
           throw new Error(
             `${claimedTeam} has already been picked by ${claimedBy} in this group. Under exclusive pick rules, each team can only be chosen once per gameweek.`
           );
         }
       }
 
-      // 5. Upsert pick record with PENDING status
+      // 8. Upsert pick record with PENDING status
       const pickUpsert = await client.query(
         `
         INSERT INTO lms_picks (entry_id, gameweek_id, team_id, result, round_number)
@@ -163,14 +326,14 @@ export async function submitLmsPick(
           updated_at = NOW()
         RETURNING id, result;
         `,
-        [entry.id, gameweekId, teamId, entry.current_round || 1]
+        [entry.id, actualGameweekId, actualTeamId, entry.current_round || 1]
       );
 
       return {
         success: true,
-        message: `Pick successfully confirmed for ${teamName || 'selected team'}!`,
+        message: `Pick successfully confirmed for ${actualTeamName}!`,
         pickId: pickUpsert.rows[0].id,
-        teamId,
+        teamId: actualTeamId,
         livesRemaining: entry.lives_remaining,
       };
     });

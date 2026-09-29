@@ -29,7 +29,7 @@ import {
   UserFixturePrediction,
   PredictorMatchClaim,
 } from '@/server/actions/predictor';
-import { removeLmsPick } from '@/server/actions/lms';
+import { removeLmsPick, getUserLmsRoundPicks } from '@/server/actions/lms';
 import { getLeagueGameweekLmsPicks } from '@/server/actions/leagues';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -111,7 +111,6 @@ export default function DashboardPage() {
   const [selectedTeam, setSelectedTeam] = useState<FixtureItem['home_team'] | null>(null);
   const [selectedFixture, setSelectedFixture] = useState<FixtureItem | null>(null);
   const [confirmedPickTeamId, setConfirmedPickTeamId] = useState<string | null>(null);
-  const [pickedTeamIds, setPickedTeamIds] = useState<string[]>([]);
 
   // Predictor Pick Modal State
   const [isPredictorModalOpen, setIsPredictorModalOpen] = useState(false);
@@ -162,6 +161,42 @@ export default function DashboardPage() {
 
   const leagueTeamClaims = lmsClaimsData?.claims || {};
 
+  // Query user's LMS picks across the active round (Burned Teams)
+  const { data: userLmsPicksData } = useQuery({
+    queryKey: ['user-lms-picks', activeLeague?.id, user?.id],
+    queryFn: async () => {
+      if (!activeLeague?.id || !user?.id) return null;
+      return await getUserLmsRoundPicks(activeLeague.id, user.id);
+    },
+    enabled: Boolean(activeLeague?.id && user?.id),
+    staleTime: 15 * 1000,
+  });
+
+  // Calculate burned team IDs for the currently selected gameweek
+  // (Teams picked in ANY OTHER gameweek of this round are burned and unavailable for selectedGameweek)
+  const burnedTeamIdsForSelectedGw: string[] = React.useMemo(() => {
+    if (!userLmsPicksData?.picksByGameweek) return [];
+    const ids: string[] = [];
+    for (const [gwStr, pick] of Object.entries(userLmsPicksData.picksByGameweek)) {
+      if (Number(gwStr) !== selectedGameweek) {
+        ids.push(String(pick.teamId));
+        if (pick.teamExternalId) {
+          ids.push(String(pick.teamExternalId));
+        }
+      }
+    }
+    return ids;
+  }, [userLmsPicksData, selectedGameweek]);
+
+  // Determine the active user's pick for the currently selected gameweek
+  const activeGameweekPickTeamId = React.useMemo(() => {
+    if (userLmsPicksData?.picksByGameweek?.[selectedGameweek]) {
+      return String(userLmsPicksData.picksByGameweek[selectedGameweek].teamId);
+    }
+    const ownClaim = Object.values(leagueTeamClaims).find((c) => c.isOwn);
+    return ownClaim?.teamId || confirmedPickTeamId || null;
+  }, [userLmsPicksData, selectedGameweek, leagueTeamClaims, confirmedPickTeamId]);
+
   // Query claimed Predictor matches for active league and selected gameweek
   const { data: predictorClaimsData } = useQuery({
     queryKey: ['predictor-match-claims', activeLeague?.id, selectedGameweek, user?.id],
@@ -197,7 +232,7 @@ export default function DashboardPage() {
 
   const handlePickConfirmed = (teamId: string) => {
     setConfirmedPickTeamId(teamId);
-    setPickedTeamIds((prev) => Array.from(new Set([...prev, teamId])));
+    queryClient.invalidateQueries({ queryKey: ['user-lms-picks'] });
     queryClient.invalidateQueries({ queryKey: ['survivor-board'] });
     queryClient.invalidateQueries({ queryKey: ['lms-team-claims'] });
     queryClient.invalidateQueries({ queryKey: ['user-session'] });
@@ -215,11 +250,7 @@ export default function DashboardPage() {
     });
     if (res.success) {
       setConfirmedPickTeamId(null);
-      if (fixture.home_team?.id) {
-        setPickedTeamIds((prev) =>
-          prev.filter((id) => id !== String(fixture.home_team.id) && id !== String(fixture.away_team?.id))
-        );
-      }
+      queryClient.invalidateQueries({ queryKey: ['user-lms-picks'] });
       queryClient.invalidateQueries({ queryKey: ['survivor-board'] });
       queryClient.invalidateQueries({ queryKey: ['lms-team-claims'] });
       queryClient.invalidateQueries({ queryKey: ['user-session'] });
@@ -228,6 +259,7 @@ export default function DashboardPage() {
 
   const handleLmsPickRemoved = () => {
     setConfirmedPickTeamId(null);
+    queryClient.invalidateQueries({ queryKey: ['user-lms-picks'] });
     queryClient.invalidateQueries({ queryKey: ['survivor-board'] });
     queryClient.invalidateQueries({ queryKey: ['lms-team-claims'] });
     queryClient.invalidateQueries({ queryKey: ['user-session'] });
@@ -610,8 +642,8 @@ export default function DashboardPage() {
               initialGameweek={5}
               gameweek={selectedGameweek}
               onGameweekChange={setSelectedGameweek}
-              selectedTeamId={confirmedPickTeamId}
-              pickedTeamIds={pickedTeamIds}
+              selectedTeamId={activeGameweekPickTeamId}
+              pickedTeamIds={burnedTeamIdsForSelectedGw}
               leagueTeamClaims={leagueTeamClaims}
               predictorMatchClaims={predictorMatchClaims}
               onSelectTeam={handleSelectTeam}
@@ -634,6 +666,8 @@ export default function DashboardPage() {
                   leagueId={activeLeague.id}
                   gameweekNumber={selectedGameweek}
                   currentUserId={user?.id}
+                  burnedCount={userLmsPicksData?.burnedCount}
+                  availableCount={userLmsPicksData?.availableCount}
                   onInviteClick={() => handleOpenShare('invite')}
                   onShareStandingsClick={(standings) => handleOpenShare('standings', standings)}
                   onViewHistoryClick={() => setIsHistoryModalOpen(true)}
@@ -767,7 +801,7 @@ export default function DashboardPage() {
         fixture={selectedFixture}
         gameweek={selectedFixture?.gameweek_number || selectedGameweek}
         entryId={activeLeague?.entryId}
-        pickedTeamIds={pickedTeamIds}
+        pickedTeamIds={burnedTeamIdsForSelectedGw}
         leagueTeamClaims={leagueTeamClaims}
         onPickConfirmed={handlePickConfirmed}
         onPickRemoved={handleLmsPickRemoved}

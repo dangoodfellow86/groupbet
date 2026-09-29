@@ -1,4 +1,4 @@
-import { submitLmsPick } from './lms';
+import { submitLmsPick, removeLmsPick, getUserLmsRoundPicks } from './lms';
 import { createLeague, joinLeague, getLeagueSurvivorBoard, getLeagueGameweekLmsPicks } from './leagues';
 import { query } from '../db/pool';
 
@@ -160,6 +160,88 @@ async function runLmsActionTests() {
       `Friend pick should display actual team: ${friendOnBoard?.currentPick?.teamName}`
     );
     console.log('✓ Survivor Board verified: picks visible live to all league members under exclusive flag');
+
+    // Test 4: Burned Team / No-Repeat Rule Enforcement
+    console.log('\n--- Running LMS Burned Team (No-Repeat) Rule Tests ---');
+    // 4a. Verify round picks shows the host's locked-in team as burned
+    const hostRoundPicks = await getUserLmsRoundPicks(leagueId, hostUserId);
+    assert(hostRoundPicks.success, 'getUserLmsRoundPicks should succeed');
+    assert(hostRoundPicks.burnedCount === 1, `Burned count should be 1, got ${hostRoundPicks.burnedCount}`);
+    assert(
+      hostRoundPicks.burnedTeamIds.includes(String(fix.home_team_id)),
+      'Burned team IDs should include picked home team'
+    );
+    assert(
+      Boolean(hostRoundPicks.picksByGameweek[fix.gameweek_number]),
+      `Pick for gameweek ${fix.gameweek_number} should exist`
+    );
+    console.log(`✓ getUserLmsRoundPicks correctly returns 1 burned team (${fix.home_team_name}) for host`);
+
+    // 4b. Find a fixture in a subsequent gameweek featuring the same team
+    const nextFixRes = await query(
+      `
+      SELECT f.id AS fixture_id, f.gameweek_id, f.kickoff_time, gw.gameweek_number
+      FROM fixtures f
+      JOIN gameweeks gw ON f.gameweek_id = gw.id
+      WHERE (f.home_team_id = $1 OR f.away_team_id = $1)
+        AND f.gameweek_id != $2
+        AND f.kickoff_time > NOW()
+      ORDER BY gw.gameweek_number ASC
+      LIMIT 1;
+      `,
+      [fix.home_team_id, fix.gameweek_id]
+    );
+
+    if (nextFixRes.rows.length > 0) {
+      const nextFix = nextFixRes.rows[0];
+
+      // Host attempts to pick the same team in another gameweek of the same tournament cycle
+      const repeatPickAttempt = await submitLmsPick({
+        entryId: hostEntryId,
+        gameweekId: nextFix.gameweek_id,
+        teamId: fix.home_team_id,
+        fixtureId: nextFix.fixture_id,
+        kickoffTime: nextFix.kickoff_time,
+        teamName: fix.home_team_name,
+      });
+
+      assert(repeatPickAttempt.success === false, 'Picking already-used team in another gameweek must be rejected');
+      assert(
+        repeatPickAttempt.message.includes('already picked') &&
+        repeatPickAttempt.message.includes('once per tournament cycle'),
+        `Error message should enforce LMS no-repeat cycle rule: "${repeatPickAttempt.message}"`
+      );
+      console.log(`✓ Correctly rejected repeated team pick in subsequent GW: "${repeatPickAttempt.message}"`);
+
+      // 4c. Remove pick from original gameweek and verify team becomes available again
+      const removePickRes = await removeLmsPick({
+        entryId: hostEntryId,
+        gameweekId: fix.gameweek_id,
+      });
+      assert(removePickRes.success, 'Removing LMS pick should succeed');
+
+      const afterRemoveRoundPicks = await getUserLmsRoundPicks(leagueId, hostUserId);
+      assert(afterRemoveRoundPicks.burnedCount === 0, 'Burned count should reset to 0 after removing pick');
+      assert(
+        !afterRemoveRoundPicks.burnedTeamIds.includes(String(fix.home_team_id)),
+        'Team should no longer be marked burned'
+      );
+      console.log(`✓ Removing pick freed up ${fix.home_team_name} from burned teams list`);
+
+      // Now picking in the subsequent gameweek should succeed
+      const retryPick = await submitLmsPick({
+        entryId: hostEntryId,
+        gameweekId: nextFix.gameweek_id,
+        teamId: fix.home_team_id,
+        fixtureId: nextFix.fixture_id,
+        kickoffTime: nextFix.kickoff_time,
+        teamName: fix.home_team_name,
+      });
+      assert(retryPick.success, `Pick in subsequent GW should now succeed: ${retryPick.message}`);
+      console.log(`✓ Successfully picked ${fix.home_team_name} in GW ${nextFix.gameweek_number} after removing previous pick`);
+    } else {
+      console.log('ℹ Skipping subsequent fixture repeat test (no future fixture found for this team)');
+    }
   } finally {
     // Clean up
     console.log('🧹 Cleaning up test records...');

@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { FixturesApiResponse } from '@/hooks/useFootballData';
-import { Clock, CheckCircle, Radio, Lock } from 'lucide-react';
+import { Clock, CheckCircle, Radio, Lock, Flame } from 'lucide-react';
 import { CountdownTimer } from '@/components/CountdownTimer';
 
 import { UserFixturePrediction, PredictorMatchClaim } from '@/server/actions/predictor';
@@ -64,8 +64,12 @@ export function FixtureCard({
   const isPostponed = fixture.status === 'POSTPONED' || fixture.status === 'CANCELLED';
   const isScheduled = !isLive && !isFinished && !isPostponed;
 
-  const isHomePickedBefore = pickedTeamIds.includes(String(fixture.home_team.external_id));
-  const isAwayPickedBefore = pickedTeamIds.includes(String(fixture.away_team.external_id));
+  const isHomePickedBefore =
+    pickedTeamIds.includes(String(fixture.home_team.id)) ||
+    pickedTeamIds.includes(String(fixture.home_team.external_id));
+  const isAwayPickedBefore =
+    pickedTeamIds.includes(String(fixture.away_team.id)) ||
+    pickedTeamIds.includes(String(fixture.away_team.external_id));
 
   const homeClaim = leagueTeamClaims
     ? leagueTeamClaims[String(fixture.home_team.id)] ||
@@ -138,23 +142,29 @@ export function FixtureCard({
         {/* Home Team */}
         <button
           type="button"
-          disabled={!interactive || !isScheduled || isHomeClaimedByOther}
+          disabled={!interactive || !isScheduled || isHomeClaimedByOther || isHomePickedBefore}
           onClick={() => onSelectTeam?.(fixture.home_team, fixture)}
           className={`flex items-center justify-end gap-2.5 p-2 rounded-lg transition-all text-right group ${
-            isHomeClaimedByOther
+            isHomeClaimedByOther || isHomePickedBefore
               ? 'opacity-40 cursor-not-allowed bg-neutral-950/40 border border-neutral-800/50'
               : interactive && isScheduled
               ? 'hover:bg-neutral-800 cursor-pointer'
               : 'cursor-default'
           } ${isHomeSelected ? 'ring-2 ring-emerald-500 bg-emerald-950/30' : ''}`}
-          title={isHomeClaimedByOther ? `Claimed by ${homeClaim?.claimedBy}` : undefined}
+          title={
+            isHomeClaimedByOther
+              ? `Claimed by ${homeClaim?.claimedBy}`
+              : isHomePickedBefore
+              ? `${fixture.home_team.name} has already been picked in a previous gameweek of this round.`
+              : undefined
+          }
         >
           <div className="flex flex-col items-end min-w-0">
             <span
               className={`text-sm font-semibold truncate ${
                 isHomeSelected
                   ? 'text-emerald-400'
-                  : isHomeClaimedByOther
+                  : isHomeClaimedByOther || isHomePickedBefore
                   ? 'text-neutral-500 line-through'
                   : 'text-neutral-200'
               }`}
@@ -167,14 +177,17 @@ export function FixtureCard({
                 <span className="truncate max-w-[80px]">{homeClaim?.claimedBy}</span>
               </span>
             ) : isHomePickedBefore ? (
-              <span className="text-[10px] text-amber-400/80">Already picked</span>
+              <span className="text-[10px] text-amber-400/90 font-medium flex items-center gap-1">
+                <Flame className="w-2.5 h-2.5 text-amber-400" />
+                <span>Used in round</span>
+              </span>
             ) : null}
           </div>
           {fixture.home_team.crest_url ? (
             <img
               src={fixture.home_team.crest_url}
               alt={fixture.home_team.name}
-              className={`w-7 h-7 object-contain shrink-0 ${isHomeClaimedByOther ? 'grayscale opacity-50' : ''}`}
+              className={`w-7 h-7 object-contain shrink-0 ${isHomeClaimedByOther || isHomePickedBefore ? 'grayscale opacity-50' : ''}`}
               loading="lazy"
             />
           ) : (
@@ -210,22 +223,28 @@ export function FixtureCard({
         {/* Away Team */}
         <button
           type="button"
-          disabled={!interactive || !isScheduled || isAwayClaimedByOther}
+          disabled={!interactive || !isScheduled || isAwayClaimedByOther || isAwayPickedBefore}
           onClick={() => onSelectTeam?.(fixture.away_team, fixture)}
           className={`flex items-center justify-start gap-2.5 p-2 rounded-lg transition-all text-left group ${
-            isAwayClaimedByOther
+            isAwayClaimedByOther || isAwayPickedBefore
               ? 'opacity-40 cursor-not-allowed bg-neutral-950/40 border border-neutral-800/50'
               : interactive && isScheduled
               ? 'hover:bg-neutral-800 cursor-pointer'
               : 'cursor-default'
           } ${isAwaySelected ? 'ring-2 ring-emerald-500 bg-emerald-950/30' : ''}`}
-          title={isAwayClaimedByOther ? `Claimed by ${awayClaim?.claimedBy}` : undefined}
+          title={
+            isAwayClaimedByOther
+              ? `Claimed by ${awayClaim?.claimedBy}`
+              : isAwayPickedBefore
+              ? `${fixture.away_team.name} has already been picked in a previous gameweek of this round.`
+              : undefined
+          }
         >
           {fixture.away_team.crest_url ? (
             <img
               src={fixture.away_team.crest_url}
               alt={fixture.away_team.name}
-              className={`w-7 h-7 object-contain shrink-0 ${isAwayClaimedByOther ? 'grayscale opacity-50' : ''}`}
+              className={`w-7 h-7 object-contain shrink-0 ${isAwayClaimedByOther || isAwayPickedBefore ? 'grayscale opacity-50' : ''}`}
               loading="lazy"
             />
           ) : (
@@ -238,7 +257,7 @@ export function FixtureCard({
               className={`text-sm font-semibold truncate ${
                 isAwaySelected
                   ? 'text-emerald-400'
-                  : isAwayClaimedByOther
+                  : isAwayClaimedByOther || isAwayPickedBefore
                   ? 'text-neutral-500 line-through'
                   : 'text-neutral-200'
               }`}
@@ -251,7 +270,10 @@ export function FixtureCard({
                 <span className="truncate max-w-[80px]">{awayClaim?.claimedBy}</span>
               </span>
             ) : isAwayPickedBefore ? (
-              <span className="text-[10px] text-amber-400/80">Already picked</span>
+              <span className="text-[10px] text-amber-400/90 font-medium flex items-center gap-1">
+                <Flame className="w-2.5 h-2.5 text-amber-400" />
+                <span>Used in round</span>
+              </span>
             ) : null}
           </div>
         </button>

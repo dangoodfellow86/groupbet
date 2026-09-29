@@ -13,6 +13,7 @@ import {
   Loader2,
   Lock,
   Trash2,
+  Flame,
 } from 'lucide-react';
 import { LeagueTeamClaim } from '@/server/actions/leagues';
 
@@ -113,8 +114,8 @@ export function LmsPickModal({
       const res = await submitLmsPick({
         entryId: entryId || 'demo-entry-uuid-001',
         gameweekId: String(gameweek),
-        teamId: String(selectedTeam.external_id || selectedTeam.id),
-        fixtureId: String(fixture.external_id || fixture.id),
+        teamId: String(selectedTeam.id || selectedTeam.external_id),
+        fixtureId: String(fixture.id || fixture.external_id),
         kickoffTime: fixture.kickoff_time,
         teamName: selectedTeam.name,
       });
@@ -210,12 +211,12 @@ export function LmsPickModal({
           </div>
         )}
 
-        {/* Warning: Already Picked */}
+        {/* Warning: Already Picked (Burned Team) */}
         {isAlreadyPicked && (
           <div className="p-3.5 rounded-xl bg-amber-950/40 border border-amber-800/60 text-amber-300 text-xs flex items-start gap-2.5">
-            <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-amber-400" />
+            <Flame className="w-4 h-4 shrink-0 mt-0.5 text-amber-400" />
             <div>
-              <span className="font-bold">Team Already Selected:</span> You have already chosen {selectedTeam.name} in a previous round. Under LMS rules, each team may only be selected once.
+              <span className="font-bold">Team Already Used in this Round:</span> You have already chosen {selectedTeam.name} in a previous gameweek of this tournament cycle. Under LMS rules, each team may only be selected once per round.
             </div>
           </div>
         )}
@@ -285,9 +286,17 @@ export function LmsPickModal({
                 <Loader2 className="w-4 h-4 animate-spin text-neutral-950" />
                 Confirming Pick...
               </>
+            ) : isAlreadyPicked ? (
+              <>
+                <Flame className="w-4 h-4 text-amber-500" /> Team Already Used
+              </>
             ) : isClaimedByOther ? (
               <>
                 <Lock className="w-4 h-4 text-neutral-400" /> Team Taken ({teamClaim?.claimedBy})
+              </>
+            ) : isKickoffPassed ? (
+              <>
+                <Clock className="w-4 h-4 text-neutral-500" /> Kickoff Passed
               </>
             ) : successMessage ? (
               <>
