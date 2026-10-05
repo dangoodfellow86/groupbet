@@ -95,7 +95,7 @@ export async function syncAuthenticatedUser(
       `INSERT INTO users (auth_id, display_name, email, avatar_url)
        VALUES ($1, $2, $3, $4)
        RETURNING id, auth_id, display_name, email, avatar_url, created_at, updated_at`,
-      [sbUser.id, displayName, email || `${sbUser.id}@groupbet.internal`, avatarUrl]
+      [sbUser.id, displayName, email || `${sbUser.id}@squadpicks.internal`, avatarUrl]
     );
     user = insertRes.rows[0] as User;
   }

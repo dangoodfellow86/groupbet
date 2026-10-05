@@ -43,7 +43,7 @@ export function generateInviteShareText(params: InviteShareParams): string {
   }
 
   return (
-    `⚽ *Join my group on Groupbet!*\n\n` +
+    `⚽ *Join my group on SquadPicks!*\n\n` +
     `🏆 *Game:* ${leagueName}\n` +
     `🎮 *Mode:* ${modeDesc}\n` +
     `🔑 *Invite Code:* ${inviteCode}\n\n` +
@@ -56,7 +56,7 @@ export function generateDeadlineNudgeText(params: DeadlineNudgeParams): string {
   const { leagueName, gameweekNumber, deadlineFormatted, timeLeftFormatted, joinUrl } = params;
 
   return (
-    `⚠️ *DEADLINE ALERT — Groupbet*\n\n` +
+    `⚠️ *DEADLINE ALERT — SquadPicks*\n\n` +
     `🏆 *Group:* ${leagueName}\n` +
     `📅 *Gameweek ${gameweekNumber} Deadline:* ${deadlineFormatted}\n` +
     `⏳ *Time Left:* ${timeLeftFormatted}\n\n` +

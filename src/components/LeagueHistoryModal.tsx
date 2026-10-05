@@ -358,7 +358,7 @@ export function LeagueHistoryModal({
 
         {/* Footer */}
         <div className="pt-3 border-t border-neutral-800/80 flex items-center justify-between text-xs text-neutral-500">
-          <span>Groupbet Tournament Engine • Season 2026/2027</span>
+          <span>SquadPicks Tournament Engine • Season 2026/2027</span>
           <button
             type="button"
             onClick={onClose}

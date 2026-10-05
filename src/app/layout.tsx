@@ -14,9 +14,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'Groupbet | Football Predictor & Last Man Standing',
+  title: 'SquadPicks | Football Predictor & Last Man Standing',
   description:
-    'Real-time football predictor leagues and Last Man Standing eliminators for the Premier League.',
+    'The football games you play with mates. Zero spreadsheets.',
 };
 
 export default function RootLayout({
@@ -29,7 +29,7 @@ export default function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col bg-neutral-950 text-neutral-100 font-sans">
+      <body className="min-h-full flex flex-col bg-brand-950 text-brand-50 font-sans selection:bg-pitch selection:text-brand-950">
         <Providers>{children}</Providers>
       </body>
     </html>

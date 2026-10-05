@@ -18,6 +18,7 @@ import { CommissionerModal } from '@/components/CommissionerModal';
 import { AuthModal } from '@/components/AuthModal';
 import { UserProfileMenu } from '@/components/UserProfileMenu';
 import { MatchdayLiveNotifier } from '@/components/MatchdayLiveNotifier';
+import { SquadPicksLogo } from '@/components/SquadPicksLogo';
 import { StandingsShareItem } from '@/lib/sharing';
 import { useUserSession } from '@/hooks/useUserSession';
 import { useMatchdayRealtime } from '@/hooks/useMatchdayRealtime';
@@ -373,20 +374,13 @@ export default function DashboardPage() {
   };
 
   return (
-    <div className="min-h-screen bg-neutral-950 text-neutral-100 flex flex-col">
+    <div className="min-h-screen bg-brand-950 text-brand-50 flex flex-col">
       {/* Top Navigation Bar */}
-      <header className="sticky top-0 z-30 border-b border-neutral-800/90 bg-neutral-950/80 backdrop-blur-md px-4 sm:px-8 py-3">
+      <header className="sticky top-0 z-30 border-b border-brand-800/90 bg-brand-950/80 backdrop-blur-md px-4 sm:px-8 py-3">
         <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
           {/* Logo & League Switcher */}
           <div className="flex items-center gap-3 sm:gap-4">
-            <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-700 flex items-center justify-center shadow-lg shadow-emerald-950/50">
-                <Trophy className="w-5 h-5 text-neutral-950 font-bold" />
-              </div>
-              <span className="font-extrabold text-lg tracking-tight bg-gradient-to-r from-emerald-400 via-teal-300 to-white bg-clip-text text-transparent hidden sm:inline">
-                GROUPBET
-              </span>
-            </div>
+            <SquadPicksLogo size="md" variant="full" />
 
             {/* League Switcher Dropdown */}
             <LeagueSwitcher
@@ -969,10 +963,10 @@ export default function DashboardPage() {
       />
 
       {/* Footer */}
-      <footer className="border-t border-neutral-800/80 bg-neutral-950 px-4 sm:px-8 py-6 text-center text-xs text-neutral-500">
+      <footer className="border-t border-brand-800/80 bg-brand-950 px-4 sm:px-8 py-6 text-center text-xs text-brand-400">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
-          <p>© 2026 Groupbet. Football Predictor & Last Man Standing Platform.</p>
-          <p className="font-mono text-[11px] text-neutral-600">
+          <p>© 2026 SquadPicks. Football Predictor & Last Man Standing Platform.</p>
+          <p className="font-mono text-[11px] text-brand-600">
             Powered by Football-Data.org • Next.js 16 • React 19
           </p>
         </div>

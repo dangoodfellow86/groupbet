@@ -264,7 +264,7 @@ export function AuthModal({
                   ? 'Sign In with Magic Link'
                   : mode === 'signup'
                   ? 'Create Your Account'
-                  : 'Sign In to Groupbet')}
+                  : 'Sign In to SquadPicks')}
             </h3>
             <p className="text-xs text-neutral-400">
               {subtitle || 'Access your survivor leagues & predictions from any device'}

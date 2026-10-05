@@ -125,6 +125,7 @@ export async function getPlayerCareerStats(
     const isGuest =
       !dbUser.auth_id ||
       dbUser.auth_id.startsWith('guest_') ||
+      dbUser.email.includes('@squadpicks.internal') ||
       dbUser.email.includes('@groupbet.internal');
 
     // 2. Fetch Tournament Participation

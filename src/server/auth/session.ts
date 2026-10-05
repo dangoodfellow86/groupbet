@@ -46,7 +46,7 @@ export async function getCurrentUser(): Promise<User | null> {
             `INSERT INTO users (auth_id, display_name, email, avatar_url)
              VALUES ($1, $2, $3, $4)
              RETURNING id, auth_id, display_name, email, avatar_url, created_at, updated_at`,
-            [sbUser.id, displayName, sbUser.email || `${sbUser.id}@groupbet.internal`, avatarUrl]
+            [sbUser.id, displayName, sbUser.email || `${sbUser.id}@squadpicks.internal`, avatarUrl]
           );
           return insertRes.rows[0] as User;
         }
@@ -95,7 +95,7 @@ export async function getOrCreateUser(
   const cleanName = displayName.trim() || 'Anonymous Player';
   const cleanEmail =
     email?.trim().toLowerCase() ||
-    `${cleanName.toLowerCase().replace(/[^a-z0-9]/g, '')}_${Date.now()}@groupbet.internal`;
+    `${cleanName.toLowerCase().replace(/[^a-z0-9]/g, '')}_${Date.now()}@squadpicks.internal`;
   const resolvedAuthId =
     authId || `guest_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
 

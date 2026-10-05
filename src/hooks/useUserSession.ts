@@ -68,6 +68,7 @@ export function useUserSession() {
     user &&
     user.auth_id &&
     !user.auth_id.startsWith('guest_') &&
+    !user.email?.includes('@squadpicks.internal') &&
     !user.email?.includes('@groupbet.internal')
   );
 

@@ -13,14 +13,15 @@ function runTests() {
   console.log('1. Testing generateInviteShareText...');
   const inviteText = generateInviteShareText({
     leagueName: 'Premier League Legends',
-    inviteCode: 'GB-K92NZ',
-    joinUrl: 'https://groupbet.app/join/GB-K92NZ',
+    inviteCode: 'SP-K92NZ',
+    joinUrl: 'https://squadpicks.app/join/SP-K92NZ',
     leagueType: 'ALL_IN_ONE',
   });
 
   assert.ok(inviteText.includes('Premier League Legends'), 'Should include league name');
-  assert.ok(inviteText.includes('GB-K92NZ'), 'Should include invite code');
-  assert.ok(inviteText.includes('https://groupbet.app/join/GB-K92NZ'), 'Should include join link');
+  assert.ok(inviteText.includes('SP-K92NZ'), 'Should include invite code');
+  assert.ok(inviteText.includes('SquadPicks'), 'Should include SquadPicks brand');
+  assert.ok(inviteText.includes('https://squadpicks.app/join/SP-K92NZ'), 'Should include join link');
   assert.ok(inviteText.includes('Last Man Standing & Premier League Predictor'), 'Should include mode description');
   console.log('   ✅ Invite share text generated properly');
 
@@ -31,13 +32,13 @@ function runTests() {
     gameweekNumber: 5,
     deadlineFormatted: 'Saturday 12:30 PM',
     timeLeftFormatted: '2 hours 15 mins',
-    joinUrl: 'https://groupbet.app/join/GB-TEST1',
+    joinUrl: 'https://squadpicks.app/join/SP-TEST1',
   });
 
-  assert.ok(nudgeText.includes('DEADLINE ALERT'), 'Should include deadline alert header');
+  assert.ok(nudgeText.includes('DEADLINE ALERT — SquadPicks'), 'Should include deadline alert header');
   assert.ok(nudgeText.includes('*Gameweek 5 Deadline:* Saturday 12:30 PM'), 'Should include gameweek deadline');
   assert.ok(nudgeText.includes('*Time Left:* 2 hours 15 mins'), 'Should include time remaining');
-  assert.ok(nudgeText.includes('https://groupbet.app/join/GB-TEST1'), 'Should include direct link');
+  assert.ok(nudgeText.includes('https://squadpicks.app/join/SP-TEST1'), 'Should include direct link');
   console.log('   ✅ Deadline nudge text generated properly');
 
   // 3. Test Standings Share Text

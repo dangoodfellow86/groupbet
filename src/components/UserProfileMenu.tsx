@@ -44,7 +44,11 @@ export function UserProfileMenu({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const isGuest = !user || user.auth_id?.startsWith('guest_') || user.email?.includes('@groupbet.internal');
+  const isGuest =
+    !user ||
+    user.auth_id?.startsWith('guest_') ||
+    user.email?.includes('@squadpicks.internal') ||
+    user.email?.includes('@groupbet.internal');
 
   const handleSignOut = async () => {
     setIsSigningOut(true);
@@ -118,7 +122,7 @@ export function UserProfileMenu({
                 </span>
               )}
             </div>
-            {!user.email?.includes('@groupbet.internal') && (
+            {!user.email?.includes('@squadpicks.internal') && !user.email?.includes('@groupbet.internal') && (
               <span className="text-[11px] text-neutral-500 truncate font-mono">
                 {user.email}
               </span>

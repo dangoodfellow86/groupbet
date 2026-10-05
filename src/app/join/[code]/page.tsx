@@ -22,6 +22,7 @@ import {
   KeyRound,
   LogIn,
 } from 'lucide-react';
+import { SquadPicksLogo } from '@/components/SquadPicksLogo';
 
 interface JoinPageProps {
   params: Promise<{ code: string }>;
@@ -192,9 +193,9 @@ export default function JoinLeaguePage({ params }: JoinPageProps) {
           <button
             type="button"
             onClick={() => router.push('/')}
-            className="px-4 py-2 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-200 text-xs font-semibold transition"
+            className="px-4 py-2 rounded-xl bg-brand-850 hover:bg-brand-800 text-brand-200 text-xs font-semibold transition border border-brand-800"
           >
-            Go to Groupbet Home
+            Go to SquadPicks Home
           </button>
         </div>
       </div>
@@ -205,19 +206,12 @@ export default function JoinLeaguePage({ params }: JoinPageProps) {
   const isLms = league?.type === 'LAST_MAN_STANDING' || isAllInOne;
 
   return (
-    <div className="min-h-screen bg-neutral-950 text-neutral-100 flex items-center justify-center p-4 py-10">
-      <div className="max-w-md w-full bg-neutral-900 border border-neutral-800 rounded-3xl p-6 sm:p-8 shadow-2xl flex flex-col gap-6">
+    <div className="min-h-screen bg-brand-950 text-brand-50 flex items-center justify-center p-4 py-10">
+      <div className="max-w-md w-full bg-brand-900 border border-brand-800 rounded-3xl p-6 sm:p-8 shadow-2xl flex flex-col gap-6">
         {/* Brand Banner */}
-        <div className="flex items-center justify-between pb-4 border-b border-neutral-800">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-700 flex items-center justify-center font-bold text-neutral-950">
-              <Trophy className="w-4 h-4" />
-            </div>
-            <span className="font-extrabold text-sm tracking-tight bg-gradient-to-r from-emerald-400 via-teal-300 to-white bg-clip-text text-transparent">
-              GROUPBET
-            </span>
-          </div>
-          <span className="text-[11px] font-mono px-2 py-0.5 rounded-full bg-neutral-800 text-neutral-400 border border-neutral-700">
+        <div className="flex items-center justify-between pb-4 border-b border-brand-800">
+          <SquadPicksLogo size="sm" variant="full" />
+          <span className="text-[11px] font-mono px-2 py-0.5 rounded-full bg-brand-950 text-brand-400 border border-brand-800">
             {code}
           </span>
         </div>
