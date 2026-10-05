@@ -85,10 +85,10 @@ The React Native mobile app will leverage the **existing GroupBet production bac
 > **Goal:** Slash registration friction down to a 1-tap experience and automatically build vibrant, recognizable player profiles.
 
 - **1-Tap Social Providers:**
-  - **Google Sign-In:** One-tap sign-in on web and Android; auto-syncs user's real name and Google profile photo.
-  - **Sign in with Apple:** Frictionless FaceID / TouchID biometric login on iOS devices and web; supports Apple private relay emails; satisfies mandatory **Apple App Store Guideline 4.8**.
-  - **Facebook Login:** Popular for social football communities; extracts verified email, display name, and Facebook profile picture.
-- **Automated Profile Enrichment Pipeline:**
+  - **Google Sign-In (✅ Implemented on Web):** 1-tap sign-in on web and Android; auto-syncs user's real name and Google profile photo directly into PostgreSQL and across all leaderboards.
+  - **Sign in with Apple (Planned):** Frictionless FaceID / TouchID biometric login on iOS devices and web; supports Apple private relay emails; satisfies mandatory **Apple App Store Guideline 4.8**.
+  - **Facebook Login (Planned):** Popular for social football communities; extracts verified email, display name, and Facebook profile picture.
+- **Automated Profile Enrichment Pipeline (✅ Implemented):**
   - On OAuth callback or ID token verification, Supabase extracts provider metadata (`picture`, `avatar_url`, `full_name`).
   - `syncAuthenticatedUser` immediately stores the real high-res profile photo into `users.avatar_url`, replacing robot/dicebear placeholders with real avatars across:
     - **Survivor Board & LMS Roster**
@@ -98,8 +98,12 @@ The React Native mobile app will leverage the **existing GroupBet production bac
   - Auto-fills display name and marks email as verified with zero confirmation friction.
   - **Seamless Guest Account Claiming:** If a player previously joined a league as a guest with their Gmail or Apple ID, signing in via social auth instantly claims and links their tournament entries, lives, and predictions.
 - **Cross-Platform Parity:**
-  - **Next.js Web:** Supabase OAuth redirect flow via `/api/auth/callback`.
+  - **Next.js Web (✅ Ready):** Supabase OAuth redirect flow via `/api/auth/callback` with open-redirect protection and URL error recovery.
   - **React Native (Expo):** Native sheets via `expo-apple-authentication` and `@react-native-google-signin/google-signin` passing cryptographic ID tokens directly to `supabase.auth.signInWithIdToken()`.
+- **Google Cloud & Supabase Configuration Guide:**
+  1. *Google Cloud Console:* Create OAuth 2.0 Client ID (Web Application) with Authorized redirect URI set to `https://<supabase-project-id>.supabase.co/auth/v1/callback`.
+  2. *Supabase Dashboard:* Navigate to **Authentication > Providers > Google**, toggle **Enable**, and paste the Google Client ID & Secret.
+  3. *Redirect URLs in Supabase:* Add `https://groupbet-liard.vercel.app/api/auth/callback` and `http://localhost:3000/api/auth/callback`.
 
 ---
 

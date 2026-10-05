@@ -22,15 +22,28 @@ export async function syncAuthenticatedUser(
   preferredDisplayName?: string
 ): Promise<User> {
   const email = sbUser.email?.toLowerCase().trim();
+
+  // Extract raw profile photo from Google or Supabase metadata
+  const rawAvatarUrl =
+    sbUser.user_metadata?.avatar_url ||
+    sbUser.user_metadata?.picture ||
+    null;
+
+  // Extract raw display name / full name from Google or Supabase metadata
+  const rawName =
+    sbUser.user_metadata?.full_name ||
+    sbUser.user_metadata?.name ||
+    sbUser.user_metadata?.display_name ||
+    null;
+
   const displayName =
     preferredDisplayName?.trim() ||
-    sbUser.user_metadata?.display_name ||
-    sbUser.user_metadata?.full_name ||
+    rawName ||
     email?.split('@')[0] ||
     'Player';
 
   const avatarUrl =
-    sbUser.user_metadata?.avatar_url ||
+    rawAvatarUrl ||
     `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(displayName)}`;
 
   // Check if user exists by auth_id or email
@@ -46,19 +59,35 @@ export async function syncAuthenticatedUser(
   if (existingRes.rows.length > 0) {
     user = existingRes.rows[0] as User;
 
-    const needsAuthIdUpdate = user.auth_id !== sbUser.id;
-    const needsNameUpdate = Boolean(preferredDisplayName && user.display_name !== preferredDisplayName);
+    const isDefaultName =
+      user.display_name === 'Player' ||
+      user.display_name === 'Guest Player' ||
+      user.display_name.startsWith('guest_') ||
+      Boolean(user.email && user.display_name === user.email.split('@')[0]);
 
-    if (needsAuthIdUpdate || needsNameUpdate) {
-      const newName = preferredDisplayName || user.display_name;
+    const needsAuthIdUpdate = user.auth_id !== sbUser.id;
+    const needsNameUpdate = Boolean(
+      (preferredDisplayName && user.display_name !== preferredDisplayName) ||
+      (rawName && isDefaultName)
+    );
+    const needsAvatarUpdate = Boolean(
+      rawAvatarUrl &&
+      (!user.avatar_url || user.avatar_url.includes('dicebear.com') || user.avatar_url !== rawAvatarUrl)
+    );
+
+    if (needsAuthIdUpdate || needsNameUpdate || needsAvatarUpdate) {
+      const newName = preferredDisplayName || (needsNameUpdate && rawName ? rawName : user.display_name);
+      const newAvatar = needsAvatarUpdate && rawAvatarUrl ? rawAvatarUrl : user.avatar_url;
+
       await query(
         `UPDATE users 
-         SET auth_id = $1, display_name = $2, updated_at = NOW() 
-         WHERE id = $3`,
-        [sbUser.id, newName, user.id]
+         SET auth_id = $1, display_name = $2, avatar_url = $3, updated_at = NOW() 
+         WHERE id = $4`,
+        [sbUser.id, newName, newAvatar, user.id]
       );
       user.auth_id = sbUser.id;
       user.display_name = newName;
+      user.avatar_url = newAvatar;
     }
   } else {
     // Insert new authenticated user record

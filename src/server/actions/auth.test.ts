@@ -153,17 +153,73 @@ async function runTests() {
     console.log(`   ✅ Guest data merged: Authenticated user retained league membership & pick for ${fixture.home_name}`);
 
     // ----------------------------------------------------
-    // 4. CLEANUP
+    // 4. GOOGLE OAUTH METADATA ENRICHMENT & AVATAR SYNC
     // ----------------------------------------------------
-    console.log('\n4. Cleaning up test records...');
+    console.log('\n4. Testing Google OAuth Sync (real name & avatar extraction)...');
+    const googleAuthId = `google_oauth_${Date.now()}`;
+    const googleEmail = `beckham_${Date.now()}@gmail.com`;
+    const googlePhoto = 'https://lh3.googleusercontent.com/a/test-google-avatar-photo';
+
+    const googleUser = await syncAuthenticatedUser({
+      id: googleAuthId,
+      email: googleEmail,
+      user_metadata: {
+        full_name: 'David Beckham',
+        picture: googlePhoto,
+      },
+    });
+
+    assert.equal(googleUser.auth_id, googleAuthId, 'auth_id must match Google OAuth ID');
+    assert.equal(googleUser.display_name, 'David Beckham', 'Display name should extract from full_name');
+    assert.equal(googleUser.avatar_url, googlePhoto, 'Avatar URL must extract from Google picture metadata');
+    console.log(`   ✅ Google OAuth new registration extracted name "${googleUser.display_name}" and photo "${googleUser.avatar_url}"`);
+
+    // ----------------------------------------------------
+    // 5. EXISTING USER UPGRADE WITH GOOGLE AVATAR
+    // ----------------------------------------------------
+    console.log('\n5. Testing upgrade of existing user profile with Google OAuth photo...');
+    const existingEmail = `player_upgrade_${Date.now()}@gmail.com`;
+
+    // First, user was created with default DiceBear avatar and generic name
+    const initialUser = await syncAuthenticatedUser({
+      id: `email_user_${Date.now()}`,
+      email: existingEmail,
+    });
+    assert.ok(initialUser.avatar_url && initialUser.avatar_url.includes('dicebear.com'), 'Initial user should have DiceBear avatar');
+
+    // Later, user logs in via Google OAuth with high-res photo and real name
+    const upgradedGoogleAuthId = `google_auth_upgrade_${Date.now()}`;
+    const upgradedGooglePhoto = 'https://lh3.googleusercontent.com/a/high-res-google-profile-pic';
+
+    const upgradedUser = await syncAuthenticatedUser({
+      id: upgradedGoogleAuthId,
+      email: existingEmail,
+      user_metadata: {
+        full_name: 'Wayne Rooney',
+        picture: upgradedGooglePhoto,
+      },
+    });
+
+    assert.equal(upgradedUser.id, initialUser.id, 'User database ID should be preserved');
+    assert.equal(upgradedUser.auth_id, upgradedGoogleAuthId, 'auth_id should be updated to Google OAuth ID');
+    assert.equal(upgradedUser.display_name, 'Wayne Rooney', 'Generic name should be upgraded to Google name');
+    assert.equal(upgradedUser.avatar_url, upgradedGooglePhoto, 'DiceBear avatar should be upgraded to Google photo');
+    console.log(`   ✅ Existing user profile successfully upgraded to Google photo "${upgradedUser.avatar_url}"`);
+
+    // ----------------------------------------------------
+    // 6. CLEANUP
+    // ----------------------------------------------------
+    console.log('\n6. Cleaning up test records...');
     await query(`DELETE FROM lms_picks WHERE entry_id = $1`, [guestEntryId]);
     await query(`DELETE FROM lms_entries WHERE league_id = $1`, [leagueId]);
     await query(`DELETE FROM league_members WHERE league_id = $1`, [leagueId]);
     await query(`DELETE FROM leagues WHERE id = $1`, [leagueId]);
-    await query(`DELETE FROM users WHERE id IN ($1, $2, $3)`, [
+    await query(`DELETE FROM users WHERE id IN ($1, $2, $3, $4, $5)`, [
       syncedUser.id,
       guestUser.id,
       claimedUser.id,
+      googleUser.id,
+      initialUser.id,
     ]);
     console.log('   🧹 Test data cleaned up.');
 

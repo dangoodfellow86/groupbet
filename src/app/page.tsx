@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { WeeklyFixtures } from '@/components/WeeklyFixtures';
 import { LeagueTable } from '@/components/LeagueTable';
 import { LmsPickModal } from '@/components/LmsPickModal';
@@ -77,6 +77,26 @@ export default function DashboardPage() {
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [authModalMode, setAuthModalMode] = useState<'signin' | 'signup'>('signin');
   const [authPrompt, setAuthPrompt] = useState<{ title?: string; subtitle?: string } | null>(null);
+  const [authErrorParam, setAuthErrorParam] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const authErr = params.get('auth_error');
+      if (authErr) {
+        setAuthErrorParam(
+          authErr === 'true'
+            ? 'Authentication could not be completed.'
+            : decodeURIComponent(authErr)
+        );
+        setIsAuthModalOpen(true);
+        // Clean up URL without reloading
+        const url = new URL(window.location.href);
+        url.searchParams.delete('auth_error');
+        window.history.replaceState({}, '', url.pathname + (url.search ? url.search : ''));
+      }
+    }
+  }, []);
 
   const requireAuth = (title: string, subtitle: string, mode: 'signin' | 'signup' = 'signup') => {
     setAuthPrompt({ title, subtitle });
@@ -927,10 +947,12 @@ export default function DashboardPage() {
         onClose={() => {
           setIsAuthModalOpen(false);
           setAuthPrompt(null);
+          setAuthErrorParam(null);
         }}
         defaultMode={authModalMode}
         title={authPrompt?.title}
         subtitle={authPrompt?.subtitle}
+        initialError={authErrorParam}
         onAuthenticated={() => {
           refetchSession();
           queryClient.invalidateQueries({ queryKey: ['user-session'] });
