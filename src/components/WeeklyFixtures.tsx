@@ -116,59 +116,59 @@ export function WeeklyFixtures({
   return (
     <div className="flex flex-col gap-5">
       {/* Gameweek Stepper Header */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-4 rounded-xl bg-neutral-900/80 border border-neutral-800 backdrop-blur">
-        <div className="flex items-center gap-2">
-          <Calendar className="w-5 h-5 text-emerald-400" />
-          <h2 className="text-lg font-bold text-neutral-100 tracking-tight">
-            Premier League Fixtures
+      <div className="flex items-center justify-between gap-2 p-3 sm:p-4 rounded-2xl bg-neutral-900/80 border border-neutral-800 backdrop-blur">
+        <div className="flex items-center gap-2 min-w-0">
+          <Calendar className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-400 shrink-0" />
+          <h2 className="text-base sm:text-lg font-bold text-neutral-100 tracking-tight truncate">
+            <span className="hidden sm:inline">Premier League </span>Fixtures
           </h2>
           {liveCount > 0 && (
-            <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-rose-950 text-rose-400 border border-rose-800 animate-pulse">
+            <span className="px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-semibold bg-rose-950 text-rose-400 border border-rose-800 animate-pulse shrink-0">
               {liveCount} LIVE
             </span>
           )}
         </div>
 
         {/* Stepper controls */}
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
           {!isActiveGameweek && (
             <button
               type="button"
               onClick={() => handleGameweekChange(5)}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-emerald-600/15 hover:bg-emerald-600/25 border border-emerald-500/30 text-emerald-300 text-xs font-semibold transition cursor-pointer"
+              className="flex items-center gap-1 px-2 sm:px-2.5 py-1.5 rounded-xl bg-emerald-600/15 hover:bg-emerald-600/25 border border-emerald-500/30 text-emerald-300 text-xs font-semibold transition cursor-pointer"
               title="Return to current active Gameweek 5"
             >
               <RotateCcw className="w-3 h-3" />
-              <span className="hidden sm:inline">Active (GW 5)</span>
+              <span className="hidden md:inline">Active (GW 5)</span>
             </button>
           )}
 
-          <div className="flex items-center gap-1 bg-neutral-950 p-1 rounded-xl border border-neutral-800">
+          <div className="flex items-center gap-0.5 sm:gap-1 bg-neutral-950 p-1 rounded-xl border border-neutral-800">
             <button
               type="button"
               disabled={currentGameweek <= 1}
               onClick={() => handleGameweekChange(Math.max(1, currentGameweek - 1))}
-              className="p-1.5 rounded-lg hover:bg-neutral-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-neutral-300 cursor-pointer"
+              className="p-1 sm:p-1.5 rounded-lg hover:bg-neutral-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-neutral-300 cursor-pointer"
               aria-label="Previous Gameweek"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
 
-            <div className="flex items-center gap-1.5 px-2 py-0.5">
-              <span className="text-xs sm:text-sm font-bold text-neutral-200 font-mono">
+            <div className="flex items-center gap-1 sm:gap-1.5 px-1.5 sm:px-2 py-0.5">
+              <span className="text-xs sm:text-sm font-bold text-neutral-200 font-mono whitespace-nowrap">
                 GW {currentGameweek}
               </span>
               {isPastGameweek ? (
-                <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wide bg-neutral-800 text-neutral-400 border border-neutral-700">
-                  Completed
+                <span className="px-1.5 py-0.5 rounded text-[8px] sm:text-[9px] font-extrabold uppercase tracking-wide bg-neutral-800 text-neutral-400 border border-neutral-700 hidden sm:inline">
+                  Finished
                 </span>
               ) : isActiveGameweek ? (
-                <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wide bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                <span className="px-1.5 py-0.5 rounded text-[8px] sm:text-[9px] font-extrabold uppercase tracking-wide bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 hidden sm:inline">
                   Active
                 </span>
               ) : (
-                <span className="px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wide bg-amber-500/15 text-amber-400 border border-amber-500/30">
-                  Upcoming
+                <span className="px-1.5 py-0.5 rounded text-[8px] sm:text-[9px] font-extrabold uppercase tracking-wide bg-amber-500/15 text-amber-400 border border-amber-500/30 hidden sm:inline">
+                  Next
                 </span>
               )}
             </div>
@@ -177,7 +177,7 @@ export function WeeklyFixtures({
               type="button"
               disabled={currentGameweek >= 38}
               onClick={() => handleGameweekChange(Math.min(38, currentGameweek + 1))}
-              className="p-1.5 rounded-lg hover:bg-neutral-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-neutral-300 cursor-pointer"
+              className="p-1 sm:p-1.5 rounded-lg hover:bg-neutral-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-neutral-300 cursor-pointer"
               aria-label="Next Gameweek"
             >
               <ChevronRight className="w-4 h-4" />
@@ -188,7 +188,7 @@ export function WeeklyFixtures({
             type="button"
             onClick={handleRefresh}
             disabled={isFetching || isManualSyncing}
-            className="p-2 rounded-xl border border-neutral-800 bg-neutral-950 hover:bg-neutral-800 text-neutral-400 hover:text-neutral-200 transition-colors cursor-pointer disabled:opacity-50"
+            className="p-2 rounded-xl border border-neutral-800 bg-neutral-950 hover:bg-neutral-800 text-neutral-400 hover:text-neutral-200 transition-colors cursor-pointer disabled:opacity-50 shrink-0"
             title="Refresh fixtures & sync latest live scores"
             aria-label="Refresh fixtures & sync latest live scores"
           >
@@ -223,7 +223,7 @@ export function WeeklyFixtures({
 
       {/* Gameweek Deadline & Countdown Card */}
       {!isPastGameweek && earliestKickoff && (
-        <div className="p-3.5 rounded-2xl bg-neutral-900/90 border border-neutral-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 shadow-sm animate-in fade-in duration-200">
+        <div className="p-3.5 rounded-2xl bg-neutral-900/90 border border-neutral-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm animate-in fade-in duration-200">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 shrink-0">
               <Clock className="w-4 h-4" />
@@ -234,7 +234,7 @@ export function WeeklyFixtures({
                   Gameweek {currentGameweek} Deadline
                 </span>
                 <span className="text-[10px] text-neutral-500 font-mono">
-                  First Match Kickoff
+                  First Kickoff
                 </span>
               </div>
               <p className="text-[11px] text-neutral-400 mt-0.5">
@@ -249,7 +249,7 @@ export function WeeklyFixtures({
             </div>
           </div>
 
-          <div className="flex items-center gap-2.5 self-end sm:self-auto flex-wrap">
+          <div className="flex items-center gap-2 self-stretch sm:self-auto justify-between sm:justify-start flex-wrap">
             <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-neutral-950 border border-neutral-800/80">
               <span className="text-[10px] text-neutral-500 font-mono uppercase tracking-wider">
                 Closing:
@@ -265,7 +265,7 @@ export function WeeklyFixtures({
                 title="Remind group members to make their picks before kickoff"
               >
                 <MessageCircle className="w-3.5 h-3.5 fill-emerald-400/20 text-emerald-400" />
-                <span>Nudge WhatsApp Group</span>
+                <span>Nudge WhatsApp</span>
               </button>
             )}
           </div>

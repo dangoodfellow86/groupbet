@@ -138,17 +138,17 @@ export function FixtureCard({
       </div>
 
       {/* Main Match Row */}
-      <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
+      <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 sm:gap-3">
         {/* Home Team */}
         <button
           type="button"
           disabled={!interactive || !isScheduled || isHomeClaimedByOther || isHomePickedBefore}
           onClick={() => onSelectTeam?.(fixture.home_team, fixture)}
-          className={`flex items-center justify-end gap-2.5 p-2 rounded-lg transition-all text-right group ${
+          className={`flex items-center justify-end gap-1.5 sm:gap-2.5 p-1.5 sm:p-2 rounded-lg transition-all text-right group min-w-0 ${
             isHomeClaimedByOther || isHomePickedBefore
               ? 'opacity-40 cursor-not-allowed bg-neutral-950/40 border border-neutral-800/50'
               : interactive && isScheduled
-              ? 'hover:bg-neutral-800 cursor-pointer'
+              ? 'hover:bg-neutral-800 active:bg-neutral-800/80 cursor-pointer'
               : 'cursor-default'
           } ${isHomeSelected ? 'ring-2 ring-emerald-500 bg-emerald-950/30' : ''}`}
           title={
@@ -161,7 +161,7 @@ export function FixtureCard({
         >
           <div className="flex flex-col items-end min-w-0">
             <span
-              className={`text-sm font-semibold truncate ${
+              className={`text-xs sm:text-sm font-semibold truncate max-w-full ${
                 isHomeSelected
                   ? 'text-emerald-400'
                   : isHomeClaimedByOther || isHomePickedBefore
@@ -172,14 +172,14 @@ export function FixtureCard({
               {fixture.home_team.short_name}
             </span>
             {isHomeClaimedByOther ? (
-              <span className="text-[10px] text-amber-400/90 font-medium flex items-center gap-1">
+              <span className="text-[9px] sm:text-[10px] text-amber-400/90 font-medium flex items-center gap-1">
                 <Lock className="w-2.5 h-2.5" />
-                <span className="truncate max-w-[80px]">{homeClaim?.claimedBy}</span>
+                <span className="truncate max-w-[65px] sm:max-w-[80px]">{homeClaim?.claimedBy}</span>
               </span>
             ) : isHomePickedBefore ? (
-              <span className="text-[10px] text-amber-400/90 font-medium flex items-center gap-1">
+              <span className="text-[9px] sm:text-[10px] text-amber-400/90 font-medium flex items-center gap-1">
                 <Flame className="w-2.5 h-2.5 text-amber-400" />
-                <span>Used in round</span>
+                <span>Used</span>
               </span>
             ) : null}
           </div>
@@ -187,11 +187,11 @@ export function FixtureCard({
             <img
               src={fixture.home_team.crest_url}
               alt={fixture.home_team.name}
-              className={`w-7 h-7 object-contain shrink-0 ${isHomeClaimedByOther || isHomePickedBefore ? 'grayscale opacity-50' : ''}`}
+              className={`w-6 h-6 sm:w-7 sm:h-7 object-contain shrink-0 ${isHomeClaimedByOther || isHomePickedBefore ? 'grayscale opacity-50' : ''}`}
               loading="lazy"
             />
           ) : (
-            <div className="w-7 h-7 rounded-full bg-neutral-800 flex items-center justify-center text-xs font-bold text-neutral-400">
+            <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-neutral-800 flex items-center justify-center text-[10px] sm:text-xs font-bold text-neutral-400 shrink-0">
               {fixture.home_team.tla}
             </div>
           )}
@@ -199,14 +199,14 @@ export function FixtureCard({
 
         {/* Center Score / VS */}
         <div
-          className={`flex flex-col items-center justify-center px-3 py-1 rounded-lg border min-w-[70px] transition-all ${
+          className={`flex flex-col items-center justify-center px-2 sm:px-3 py-1 rounded-lg border min-w-[56px] sm:min-w-[70px] transition-all shrink-0 ${
             isLive
               ? 'bg-rose-950/40 border-rose-500/40 shadow-sm shadow-rose-950/50'
               : 'bg-neutral-950/80 border-neutral-800'
           }`}
         >
           {isFinished || isLive ? (
-            <div className="flex items-center gap-2 font-mono text-base font-bold text-neutral-100">
+            <div className="flex items-center gap-1 sm:gap-2 font-mono text-sm sm:text-base font-bold text-neutral-100">
               <span className={isLive ? 'text-rose-400 font-extrabold animate-pulse' : ''}>
                 {fixture.home_score ?? 0}
               </span>
@@ -216,7 +216,7 @@ export function FixtureCard({
               </span>
             </div>
           ) : (
-            <span className="text-xs font-medium text-neutral-500 tracking-wider">VS</span>
+            <span className="text-[11px] sm:text-xs font-medium text-neutral-500 tracking-wider">VS</span>
           )}
         </div>
 
@@ -225,11 +225,11 @@ export function FixtureCard({
           type="button"
           disabled={!interactive || !isScheduled || isAwayClaimedByOther || isAwayPickedBefore}
           onClick={() => onSelectTeam?.(fixture.away_team, fixture)}
-          className={`flex items-center justify-start gap-2.5 p-2 rounded-lg transition-all text-left group ${
+          className={`flex items-center justify-start gap-1.5 sm:gap-2.5 p-1.5 sm:p-2 rounded-lg transition-all text-left group min-w-0 ${
             isAwayClaimedByOther || isAwayPickedBefore
               ? 'opacity-40 cursor-not-allowed bg-neutral-950/40 border border-neutral-800/50'
               : interactive && isScheduled
-              ? 'hover:bg-neutral-800 cursor-pointer'
+              ? 'hover:bg-neutral-800 active:bg-neutral-800/80 cursor-pointer'
               : 'cursor-default'
           } ${isAwaySelected ? 'ring-2 ring-emerald-500 bg-emerald-950/30' : ''}`}
           title={
@@ -244,17 +244,17 @@ export function FixtureCard({
             <img
               src={fixture.away_team.crest_url}
               alt={fixture.away_team.name}
-              className={`w-7 h-7 object-contain shrink-0 ${isAwayClaimedByOther || isAwayPickedBefore ? 'grayscale opacity-50' : ''}`}
+              className={`w-6 h-6 sm:w-7 sm:h-7 object-contain shrink-0 ${isAwayClaimedByOther || isAwayPickedBefore ? 'grayscale opacity-50' : ''}`}
               loading="lazy"
             />
           ) : (
-            <div className="w-7 h-7 rounded-full bg-neutral-800 flex items-center justify-center text-xs font-bold text-neutral-400">
+            <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-neutral-800 flex items-center justify-center text-[10px] sm:text-xs font-bold text-neutral-400 shrink-0">
               {fixture.away_team.tla}
             </div>
           )}
           <div className="flex flex-col items-start min-w-0">
             <span
-              className={`text-sm font-semibold truncate ${
+              className={`text-xs sm:text-sm font-semibold truncate max-w-full ${
                 isAwaySelected
                   ? 'text-emerald-400'
                   : isAwayClaimedByOther || isAwayPickedBefore
@@ -265,14 +265,14 @@ export function FixtureCard({
               {fixture.away_team.short_name}
             </span>
             {isAwayClaimedByOther ? (
-              <span className="text-[10px] text-amber-400/90 font-medium flex items-center gap-1">
+              <span className="text-[9px] sm:text-[10px] text-amber-400/90 font-medium flex items-center gap-1">
                 <Lock className="w-2.5 h-2.5" />
-                <span className="truncate max-w-[80px]">{awayClaim?.claimedBy}</span>
+                <span className="truncate max-w-[65px] sm:max-w-[80px]">{awayClaim?.claimedBy}</span>
               </span>
             ) : isAwayPickedBefore ? (
-              <span className="text-[10px] text-amber-400/90 font-medium flex items-center gap-1">
+              <span className="text-[9px] sm:text-[10px] text-amber-400/90 font-medium flex items-center gap-1">
                 <Flame className="w-2.5 h-2.5 text-amber-400" />
-                <span>Used in round</span>
+                <span>Used</span>
               </span>
             ) : null}
           </div>
@@ -304,14 +304,14 @@ export function FixtureCard({
       {gameMode === 'predictor' && (
         <div className="mt-2.5 pt-2 border-t border-neutral-800/80">
           {userPrediction ? (
-            <div className="w-full flex items-center justify-between text-xs py-1 px-2 rounded-lg bg-neutral-950/60 border border-amber-500/20 hover:border-amber-500/40 transition">
+            <div className="w-full flex items-center justify-between text-xs py-1.5 px-2.5 rounded-xl bg-neutral-950/60 border border-amber-500/25 hover:border-amber-500/40 transition">
               <button
                 type="button"
                 disabled={!isScheduled}
                 onClick={() => onPredictClick?.(fixture)}
-                className="flex items-center gap-1.5 truncate text-left flex-1 hover:opacity-90 transition cursor-pointer"
+                className="flex items-center gap-1.5 truncate text-left flex-1 hover:opacity-90 transition cursor-pointer min-w-0"
               >
-                <span className="font-mono font-bold text-amber-400 text-xs">
+                <span className="font-mono font-bold text-amber-400 text-xs shrink-0">
                   🎯 {userPrediction.exactScore?.home} - {userPrediction.exactScore?.away}
                 </span>
                 <span className="text-[10px] text-neutral-400 truncate">
@@ -323,7 +323,7 @@ export function FixtureCard({
                   <button
                     type="button"
                     onClick={() => onPredictClick?.(fixture)}
-                    className="text-[10px] font-semibold text-amber-400/90 underline hover:text-amber-300 transition cursor-pointer"
+                    className="text-[11px] font-semibold text-amber-400/90 underline hover:text-amber-300 transition cursor-pointer"
                   >
                     Edit
                   </button>
@@ -331,7 +331,7 @@ export function FixtureCard({
                     <button
                       type="button"
                       onClick={() => onRemovePredictorPick(fixture)}
-                      className="text-[10px] font-semibold text-rose-400 hover:text-rose-300 underline transition cursor-pointer"
+                      className="text-[11px] font-semibold text-rose-400 hover:text-rose-300 underline transition cursor-pointer"
                     >
                       Remove
                     </button>
@@ -344,7 +344,7 @@ export function FixtureCard({
               )}
             </div>
           ) : isPredictorClaimedByOther ? (
-            <div className="w-full flex items-center justify-between text-xs py-1.5 px-2.5 rounded-lg bg-neutral-950/60 border border-amber-900/30 opacity-60 cursor-not-allowed">
+            <div className="w-full flex items-center justify-between text-xs py-1.5 px-2.5 rounded-xl bg-neutral-950/60 border border-amber-900/30 opacity-60 cursor-not-allowed">
               <div className="flex items-center gap-1.5 truncate">
                 <Lock className="w-3.5 h-3.5 text-amber-400 shrink-0" />
                 <span className="text-[11px] font-medium text-neutral-300 truncate">
@@ -365,10 +365,10 @@ export function FixtureCard({
               type="button"
               disabled={!isScheduled}
               onClick={() => onPredictClick?.(fixture)}
-              className="w-full flex items-center justify-center gap-1.5 py-1 text-xs font-bold text-amber-400 hover:text-amber-300 disabled:opacity-40 transition"
+              className="w-full min-h-[42px] flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 active:bg-amber-500/25 border border-amber-500/25 text-amber-300 text-xs font-bold disabled:opacity-40 transition cursor-pointer"
             >
               <span>+ Predict Score & Markets</span>
-              <span className="text-[10px] text-neutral-400 font-normal">(Up to 6 pts)</span>
+              <span className="text-[10px] text-amber-400/80 font-normal hidden sm:inline">(Up to 6 pts)</span>
             </button>
           )}
         </div>
