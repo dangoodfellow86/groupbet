@@ -14,9 +14,18 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || 'https://www.squadpicks.co.uk'),
   title: 'SquadPicks | Football Predictor & Last Man Standing',
   description:
     'The football games you play with mates. Zero spreadsheets.',
+  openGraph: {
+    title: 'SquadPicks | Football Predictor & Last Man Standing',
+    description: 'The football games you play with mates. Zero spreadsheets.',
+    url: 'https://www.squadpicks.co.uk',
+    siteName: 'SquadPicks',
+    locale: 'en_GB',
+    type: 'website',
+  },
 };
 
 export default function RootLayout({
