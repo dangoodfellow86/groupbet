@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { PlusCircle, Shield, Trophy, Heart, Calendar, User as UserIcon, X, Loader2, Sparkles, Target, Lock } from 'lucide-react';
 import { createLeague, CreateLeagueResult } from '@/server/actions/leagues';
 import { LeagueType } from '@/core/types/database';
@@ -10,6 +10,7 @@ interface CreateGameModalProps {
   onClose: () => void;
   defaultUserName?: string;
   defaultUserEmail?: string;
+  activeGameweek?: number;
   onGameCreated: (result: CreateLeagueResult) => void;
 }
 
@@ -18,11 +19,12 @@ export function CreateGameModal({
   onClose,
   defaultUserName = '',
   defaultUserEmail,
+  activeGameweek = 6,
   onGameCreated,
 }: CreateGameModalProps) {
   const [name, setName] = useState('');
   const [type, setType] = useState<LeagueType>('ALL_IN_ONE');
-  const [startingGameweek, setStartingGameweek] = useState(5);
+  const [startingGameweek, setStartingGameweek] = useState(activeGameweek);
   const [startingLives, setStartingLives] = useState(1);
   const [matchesPerGameweek, setMatchesPerGameweek] = useState<number | 'ALL'>(1);
   const [allowDuplicatePredictions, setAllowDuplicatePredictions] = useState(false);
@@ -30,6 +32,12 @@ export function CreateGameModal({
   const [creatorDisplayName, setCreatorDisplayName] = useState(defaultUserName || '');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (isOpen && activeGameweek) {
+      setStartingGameweek(activeGameweek);
+    }
+  }, [isOpen, activeGameweek]);
 
   if (!isOpen) return null;
 
@@ -269,9 +277,13 @@ export function CreateGameModal({
                     onChange={(e) => setStartingGameweek(Number(e.target.value))}
                     className="bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2 text-xs font-medium text-neutral-200 focus:outline-none focus:border-emerald-500/60 transition"
                   >
-                    <option value={5}>Gameweek 5 (Upcoming)</option>
-                    <option value={6}>Gameweek 6</option>
-                    <option value={7}>Gameweek 7</option>
+                    {Array.from({ length: 5 }, (_, idx) => activeGameweek + idx)
+                      .filter((gw) => gw <= 38)
+                      .map((gw) => (
+                        <option key={gw} value={gw}>
+                          Gameweek {gw} {gw === activeGameweek ? '(Current Active)' : ''}
+                        </option>
+                      ))}
                   </select>
                 </div>
               </div>
@@ -327,7 +339,7 @@ export function CreateGameModal({
             </div>
           ) : (
             <div className="p-3 rounded-xl bg-neutral-950/70 border border-neutral-800/80 text-xs text-neutral-400">
-              Starts at <strong className="text-neutral-200">Gameweek 5</strong>. Points awarded for Exact Score (+3), Match Outcome (+1), BTTS (+1), and Over/Under (+1).
+              Starts at <strong className="text-neutral-200">Gameweek {startingGameweek}</strong>. Points awarded for Exact Score (+3), Match Outcome (+1), BTTS (+1), and Over/Under (+1).
             </div>
           )}
 

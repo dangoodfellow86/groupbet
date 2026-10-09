@@ -61,7 +61,7 @@ export function LeagueHistoryModal({
 
   if (!isOpen) return null;
 
-  const gameweeks = matrixData?.gameweeks || [1, 2, 3, 4, 5];
+  const gameweeks = matrixData?.gameweeks || [];
   const players = matrixData?.players || [];
   const teams = burnedData?.teams || [];
 
@@ -132,7 +132,7 @@ export function LeagueHistoryModal({
           </div>
 
           <div className="text-[11px] text-neutral-500 font-mono hidden sm:block">
-            GW 1 – GW 5 Premier League Season
+            GW 1 – GW {gameweeks.length > 0 ? gameweeks[gameweeks.length - 1] : 1} Premier League Season
           </div>
         </div>
 

@@ -34,7 +34,7 @@ interface UseMatchdayRealtimeOptions {
 
 export function useMatchdayRealtime({
   leagueId,
-  gameweekNumber = 5,
+  gameweekNumber,
   currentUserId,
   userLmsTeamId,
   userPredictorFixtureIds = [],
@@ -47,7 +47,7 @@ export function useMatchdayRealtime({
 
   // Derived count of active live matches from query cache
   const cachedFixtures =
-    queryClient.getQueryData<FixturesApiResponse>(['fixtures', gameweekNumber]) ||
+    (gameweekNumber ? queryClient.getQueryData<FixturesApiResponse>(['fixtures', gameweekNumber]) : null) ||
     queryClient.getQueryData<FixturesApiResponse>(['fixtures', 'current']);
   const liveMatchesCount = cachedFixtures?.fixtures.filter((f) => f.status === 'LIVE').length || 0;
 
@@ -64,7 +64,8 @@ export function useMatchdayRealtime({
   // Helper to find fixture info from query cache
   const findCachedFixture = useCallback(
     (fixtureId: string) => {
-      const cached = queryClient.getQueryData<FixturesApiResponse>(['fixtures', gameweekNumber]) ||
+      const cached =
+        (gameweekNumber ? queryClient.getQueryData<FixturesApiResponse>(['fixtures', gameweekNumber]) : null) ||
         queryClient.getQueryData<FixturesApiResponse>(['fixtures', 'current']);
       return cached?.fixtures.find((f) => f.id === fixtureId || String(f.external_id) === fixtureId);
     },

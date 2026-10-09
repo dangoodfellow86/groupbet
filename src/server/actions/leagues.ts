@@ -78,7 +78,13 @@ export async function createLeague(input: CreateLeagueInput): Promise<CreateLeag
     const isPredictor = input.type === 'PREDICTOR' || input.type === 'ALL_IN_ONE';
 
     const startingLives = isLms ? (input.startingLives ?? 1) : 0;
-    const startingGameweek = input.startingGameweek ?? 5;
+    let startingGameweek = input.startingGameweek;
+    if (!startingGameweek) {
+      const activeGwRes = await query<{ gameweek_number: number }>(
+        'SELECT gameweek_number FROM gameweeks WHERE is_current = TRUE LIMIT 1'
+      );
+      startingGameweek = activeGwRes.rows[0]?.gameweek_number ?? 1;
+    }
 
     const settings = {
       starting_lives: startingLives,
@@ -217,7 +223,7 @@ export async function getLeagueByInviteCode(
       creator_name: row.creator_name,
       creator_avatar: row.creator_avatar,
       member_count: row.member_count,
-      starting_gameweek: settings.starting_gameweek ?? 5,
+      starting_gameweek: settings.starting_gameweek ?? 1,
       starting_lives: settings.starting_lives ?? 1,
       allow_repeat_teams: settings.allow_repeat_teams ?? false,
       matches_per_gameweek: settings.matches_per_gameweek ?? 1,
@@ -512,7 +518,15 @@ export async function getLeagueSurvivorBoard(
         u.display_name ASC
     `;
 
-    const res = await query(sql, [leagueId, gameweekNumber ?? 5]);
+    let targetGw = gameweekNumber;
+    if (!targetGw) {
+      const activeGwRes = await query<{ gameweek_number: number }>(
+        'SELECT gameweek_number FROM gameweeks WHERE is_current = TRUE LIMIT 1'
+      );
+      targetGw = activeGwRes.rows[0]?.gameweek_number ?? 1;
+    }
+
+    const res = await query(sql, [leagueId, targetGw]);
     const now = Date.now();
 
     const players: SurvivorBoardPlayer[] = res.rows.map((row) => {

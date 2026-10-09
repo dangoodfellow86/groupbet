@@ -108,7 +108,7 @@ export function WeeklyFixtures({
     return acc;
   }, {});
 
-  const activeGameweek = data?.activeGameweek ?? 5;
+  const activeGameweek = data?.activeGameweek ?? currentGameweek;
   const isPastGameweek = currentGameweek < activeGameweek;
   const isActiveGameweek = currentGameweek === activeGameweek;
   const isFutureGameweek = currentGameweek > activeGameweek;
@@ -134,12 +134,12 @@ export function WeeklyFixtures({
           {!isActiveGameweek && (
             <button
               type="button"
-              onClick={() => handleGameweekChange(5)}
+              onClick={() => handleGameweekChange(activeGameweek)}
               className="flex items-center gap-1 px-2 sm:px-2.5 py-1.5 rounded-xl bg-emerald-600/15 hover:bg-emerald-600/25 border border-emerald-500/30 text-emerald-300 text-xs font-semibold transition cursor-pointer"
-              title="Return to current active Gameweek 5"
+              title={`Return to current active Gameweek ${activeGameweek}`}
             >
               <RotateCcw className="w-3 h-3" />
-              <span className="hidden md:inline">Active (GW 5)</span>
+              <span className="hidden md:inline">Active (GW {activeGameweek})</span>
             </button>
           )}
 
@@ -213,10 +213,10 @@ export function WeeklyFixtures({
           </div>
           <button
             type="button"
-            onClick={() => handleGameweekChange(5)}
+            onClick={() => handleGameweekChange(activeGameweek)}
             className="self-start sm:self-auto text-xs text-emerald-400 hover:text-emerald-300 font-semibold underline underline-offset-4 cursor-pointer"
           >
-            Return to Active Round (GW 5) →
+            Return to Active Round (GW {activeGameweek}) →
           </button>
         </div>
       )}

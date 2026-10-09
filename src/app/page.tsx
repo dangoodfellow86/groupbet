@@ -23,7 +23,7 @@ import { MobileBottomNav, MobileNavTab } from '@/components/MobileBottomNav';
 import { StandingsShareItem } from '@/lib/sharing';
 import { useUserSession } from '@/hooks/useUserSession';
 import { useMatchdayRealtime } from '@/hooks/useMatchdayRealtime';
-import { FixturesApiResponse } from '@/hooks/useFootballData';
+import { FixturesApiResponse, useGameweekFixtures } from '@/hooks/useFootballData';
 import {
   getUserGameweekPredictions,
   getLeagueGameweekPredictorClaims,
@@ -68,10 +68,16 @@ export default function DashboardPage() {
     refetch: refetchSession,
   } = useUserSession();
 
+  // Query current fixtures to dynamically identify the active gameweek
+  const { data: currentFixturesData } = useGameweekFixtures();
+  const activeGameweek = currentFixturesData?.activeGameweek ?? currentFixturesData?.gameweek ?? 6;
+
   const [gameMode, setGameMode] = useState<'lms' | 'predictor'>('lms');
   const [mobileTab, setMobileTab] = useState<MobileNavTab>('picks');
   const [desktopView, setDesktopView] = useState<'game' | 'matchday'>('game');
-  const [selectedGameweek, setSelectedGameweek] = useState<number>(5);
+  const [selectedGameweekOverride, setSelectedGameweekOverride] = useState<number | null>(null);
+  const selectedGameweek = selectedGameweekOverride ?? activeGameweek;
+  const setSelectedGameweek = (gw: number) => setSelectedGameweekOverride(gw);
   const [hasCopiedInviteCode, setHasCopiedInviteCode] = useState(false);
 
   // Synchronize game mode with active league type
@@ -731,7 +737,7 @@ export default function DashboardPage() {
           {/* Main Fixtures Column */}
           <section className="lg:col-span-8 flex flex-col gap-6">
             <WeeklyFixtures
-              initialGameweek={5}
+              initialGameweek={activeGameweek}
               gameweek={selectedGameweek}
               onGameweekChange={setSelectedGameweek}
               selectedTeamId={activeGameweekPickTeamId}
@@ -833,7 +839,7 @@ export default function DashboardPage() {
           {/* Tab 1: Picks */}
           {mobileTab === 'picks' && (
             <WeeklyFixtures
-              initialGameweek={5}
+              initialGameweek={activeGameweek}
               gameweek={selectedGameweek}
               onGameweekChange={setSelectedGameweek}
               selectedTeamId={activeGameweekPickTeamId}
@@ -907,7 +913,7 @@ export default function DashboardPage() {
           {mobileTab === 'matchday' && (
             <div className="flex flex-col gap-5">
               <WeeklyFixtures
-                initialGameweek={5}
+                initialGameweek={activeGameweek}
                 gameweek={selectedGameweek}
                 onGameweekChange={setSelectedGameweek}
                 interactive={false}
@@ -1094,6 +1100,7 @@ export default function DashboardPage() {
         onClose={() => setIsCreateModalOpen(false)}
         defaultUserName={user?.display_name}
         defaultUserEmail={user?.email}
+        activeGameweek={activeGameweek}
         onGameCreated={handleGameCreated}
       />
 

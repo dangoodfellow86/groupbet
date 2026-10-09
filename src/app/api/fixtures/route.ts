@@ -23,7 +23,13 @@ export async function GET(req: NextRequest) {
     const activeGwRes = await query<{ gameweek_number: number }>(
       'SELECT gameweek_number FROM gameweeks WHERE is_current = TRUE LIMIT 1'
     );
-    const activeGameweek = activeGwRes.rows[0]?.gameweek_number || 5;
+    let activeGameweek = activeGwRes.rows[0]?.gameweek_number;
+    if (!activeGameweek) {
+      const nextGwRes = await query<{ gameweek_number: number }>(
+        'SELECT gameweek_number FROM gameweeks WHERE is_completed = FALSE ORDER BY gameweek_number ASC LIMIT 1'
+      );
+      activeGameweek = nextGwRes.rows[0]?.gameweek_number || 1;
+    }
     const currentGw = gwNumber ?? activeGameweek;
 
     const fixturesRes = await query(
@@ -111,7 +117,7 @@ export async function GET(req: NextRequest) {
       },
     }));
 
-    const activeGw = res.currentMatchday || 5;
+    const activeGw = res.currentMatchday || 1;
     return NextResponse.json({
       gameweek: gwNumber || activeGw,
       activeGameweek: activeGw,

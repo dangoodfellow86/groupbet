@@ -41,7 +41,7 @@ export function ShareGameModal({
   leagueName,
   inviteCode,
   leagueType = 'LAST_MAN_STANDING',
-  gameweekNumber = 5,
+  gameweekNumber = 1,
   gameweekDeadline,
   standings = [],
   initialTab = 'invite',
