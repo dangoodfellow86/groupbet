@@ -103,7 +103,11 @@ The React Native mobile app will leverage the **existing GroupBet production bac
 - **Google Cloud & Supabase Configuration Guide:**
   1. *Google Cloud Console:* Create OAuth 2.0 Client ID (Web Application) with Authorized redirect URI set to `https://<supabase-project-id>.supabase.co/auth/v1/callback`.
   2. *Supabase Dashboard:* Navigate to **Authentication > Providers > Google**, toggle **Enable**, and paste the Google Client ID & Secret.
-  3. *Redirect URLs in Supabase:* Add `https://groupbet-liard.vercel.app/api/auth/callback` and `http://localhost:3000/api/auth/callback`.
+- **Player Profile Customization & Avatar Studio (📋 Ready in [BACKLOG.md](file:///c:/Dev/groupbet/BACKLOG.md)):**
+  - Ability for players to amend their display names.
+  - Custom photo upload from device/camera with canvas WebP compression and Supabase Storage `avatars` bucket.
+  - Premier League club badges gallery (20 clubs) & DiceBear avatar randomizer.
+  - Google OAuth protection to prevent overwriting custom avatars.
 
 ---
 
