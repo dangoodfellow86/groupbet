@@ -12,13 +12,14 @@ import {
   KeyRound,
   LogIn,
   Trophy,
+  Pencil,
 } from 'lucide-react';
 
 interface UserProfileMenuProps {
   user: User | null;
   onOpenAuth: (mode?: 'signin' | 'signup') => void;
   onOpenJoinCode: () => void;
-  onOpenProfile?: () => void;
+  onOpenProfile?: (tab?: 'overview' | 'trophies' | 'tournaments' | 'edit') => void;
   onUserLoggedOut?: () => void;
 }
 
@@ -152,17 +153,30 @@ export function UserProfileMenu({
           {/* Menu Actions */}
           <div className="flex flex-col gap-1.5 pt-1 border-t border-neutral-800/80">
             {onOpenProfile && (
-              <button
-                type="button"
-                onClick={() => {
-                  setIsOpen(false);
-                  onOpenProfile();
-                }}
-                className="w-full px-3 py-2 rounded-xl text-xs font-semibold text-amber-300 hover:text-amber-200 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 transition flex items-center gap-2 text-left cursor-pointer"
-              >
-                <Trophy className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                <span>My Profile & Trophies</span>
-              </button>
+              <>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsOpen(false);
+                    onOpenProfile('overview');
+                  }}
+                  className="w-full px-3 py-2 rounded-xl text-xs font-semibold text-amber-300 hover:text-amber-200 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 transition flex items-center gap-2 text-left cursor-pointer"
+                >
+                  <Trophy className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                  <span>My Profile & Trophies</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsOpen(false);
+                    onOpenProfile('edit');
+                  }}
+                  className="w-full px-3 py-2 rounded-xl text-xs font-semibold text-emerald-300 hover:text-emerald-200 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 transition flex items-center gap-2 text-left cursor-pointer"
+                >
+                  <Pencil className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                  <span>Edit Profile & Avatar</span>
+                </button>
+              </>
             )}
             <button
               type="button"

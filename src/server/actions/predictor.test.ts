@@ -22,6 +22,14 @@ async function runTests() {
       JOIN teams ht ON f.home_team_id = ht.id
       JOIN teams at ON f.away_team_id = at.id
       WHERE f.status = 'SCHEDULED' AND f.kickoff_time > NOW()
+        AND gw.gameweek_number IN (
+          SELECT gw2.gameweek_number
+          FROM fixtures f2
+          JOIN gameweeks gw2 ON f2.gameweek_id = gw2.id
+          WHERE f2.status = 'SCHEDULED' AND f2.kickoff_time > NOW()
+          GROUP BY gw2.gameweek_number
+          HAVING COUNT(*) >= 2
+        )
       ORDER BY f.kickoff_time ASC
       LIMIT 1;
       `

@@ -2,6 +2,27 @@
 
 import { query } from '@/server/db/pool';
 import { getCurrentUser } from '@/server/auth/session';
+import { User } from '@/core/types/database';
+
+export interface UpdateUserProfileInput {
+  displayName: string;
+  avatarUrl?: string | null;
+  customAvatar?: boolean;
+}
+
+export interface UpdateUserProfileResult {
+  success: boolean;
+  message?: string;
+  user?: User;
+}
+
+export interface ClubBadgeItem {
+  id: string;
+  name: string;
+  shortName: string;
+  tla: string;
+  crestUrl: string;
+}
 
 export interface TrophyBadge {
   id: string;
@@ -324,3 +345,134 @@ export async function getPlayerCareerStats(
     };
   }
 }
+
+/**
+ * Server Action: Update the player's profile (display name, avatar).
+ * Updates public.users, Supabase Auth user_metadata, and session cookies.
+ */
+export async function updateUserProfile(
+  input: UpdateUserProfileInput,
+  userIdOverride?: string
+): Promise<UpdateUserProfileResult> {
+  try {
+    let sessionUser: User | null = null;
+    if (userIdOverride) {
+      const res = await query(
+        `SELECT id, auth_id, display_name, email, avatar_url, custom_avatar, created_at, updated_at FROM users WHERE id::text = $1`,
+        [userIdOverride]
+      );
+      sessionUser = (res.rows[0] as User) || null;
+    } else {
+      sessionUser = await getCurrentUser();
+    }
+
+    if (!sessionUser) {
+      return { success: false, message: 'You must be signed in to update your profile.' };
+    }
+
+    const cleanName = input.displayName.trim();
+    if (!cleanName || cleanName.length < 2) {
+      return { success: false, message: 'Display name must be at least 2 characters long.' };
+    }
+    if (cleanName.length > 30) {
+      return { success: false, message: 'Display name cannot exceed 30 characters.' };
+    }
+
+    const newAvatar = input.avatarUrl !== undefined ? input.avatarUrl : sessionUser.avatar_url;
+    const isCustom = input.customAvatar !== undefined ? input.customAvatar : true;
+
+    // 1. Update public.users record
+    const updateRes = await query(
+      `UPDATE users 
+       SET display_name = $1, 
+           avatar_url = $2, 
+           custom_avatar = $3, 
+           updated_at = NOW() 
+       WHERE id = $4 
+       RETURNING id, auth_id, display_name, email, avatar_url, custom_avatar, created_at, updated_at`,
+      [cleanName, newAvatar, isCustom, sessionUser.id]
+    );
+
+    if (updateRes.rows.length === 0) {
+      return { success: false, message: 'User record not found.' };
+    }
+
+    const updatedUser = updateRes.rows[0] as User;
+
+    // 2. If authenticated via Supabase Auth, update user_metadata in auth.users
+    if (sessionUser.auth_id && !sessionUser.auth_id.startsWith('guest_')) {
+      try {
+        const { createClient } = await import('@/lib/supabase/server');
+        const supabase = await createClient();
+        await supabase.auth.updateUser({
+          data: {
+            display_name: cleanName,
+            ...(newAvatar ? { avatar_url: newAvatar } : {}),
+          },
+        });
+      } catch (authErr) {
+        // Non-blocking if auth metadata sync fails
+        console.warn('[updateUserProfile] Failed to update auth metadata:', authErr);
+      }
+    }
+
+    // 3. Update active session name cookie
+    try {
+      const { cookies } = await import('next/headers');
+      const { USER_NAME_COOKIE } = await import('@/server/auth/session');
+      const cookieStore = await cookies();
+      cookieStore.set(USER_NAME_COOKIE, updatedUser.display_name, {
+        path: '/',
+        httpOnly: false,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: 60 * 60 * 24 * 365,
+      });
+    } catch {
+      // Non-blocking if called outside server request context
+    }
+
+    return {
+      success: true,
+      message: 'Profile updated successfully!',
+      user: updatedUser,
+    };
+  } catch (err: any) {
+    console.error('[updateUserProfile] Error:', err);
+    return {
+      success: false,
+      message: err.message || 'Failed to update profile.',
+    };
+  }
+}
+
+/**
+ * Server Action: Retrieve list of Premier League club badges for avatar selection.
+ */
+export async function getPremierLeagueClubBadges(): Promise<{
+  success: boolean;
+  clubs: ClubBadgeItem[];
+}> {
+  try {
+    const res = await query(
+      `SELECT DISTINCT ON (name) id, name, short_name, tla, crest_url
+       FROM teams
+       WHERE crest_url IS NOT NULL AND crest_url != ''
+       ORDER BY name ASC`
+    );
+
+    const clubs: ClubBadgeItem[] = res.rows.map((r) => ({
+      id: r.id,
+      name: r.name,
+      shortName: r.short_name || r.name,
+      tla: r.tla || '',
+      crestUrl: r.crest_url,
+    }));
+
+    return { success: true, clubs };
+  } catch (err: any) {
+    console.error('[getPremierLeagueClubBadges] Error:', err);
+    return { success: false, clubs: [] };
+  }
+}
+

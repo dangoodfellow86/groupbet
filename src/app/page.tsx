@@ -106,6 +106,7 @@ export default function DashboardPage() {
   const [isSimulatorOpen, setIsSimulatorOpen] = useState(false);
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+  const [profileModalTab, setProfileModalTab] = useState<'overview' | 'trophies' | 'tournaments' | 'edit'>('overview');
   const [isCommissionerModalOpen, setIsCommissionerModalOpen] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [authModalMode, setAuthModalMode] = useState<'signin' | 'signup'>('signin');
@@ -509,7 +510,10 @@ export default function DashboardPage() {
                 setIsAuthModalOpen(true);
               }}
               onOpenJoinCode={handleJoinCodeClick}
-              onOpenProfile={() => setIsProfileModalOpen(true)}
+              onOpenProfile={(tab = 'overview') => {
+                setProfileModalTab(tab);
+                setIsProfileModalOpen(true);
+              }}
               onUserLoggedOut={() => {
                 refetchSession();
                 queryClient.invalidateQueries({ queryKey: ['user-session'] });
@@ -1155,6 +1159,7 @@ export default function DashboardPage() {
         isOpen={isProfileModalOpen}
         onClose={() => setIsProfileModalOpen(false)}
         userId={user?.id}
+        initialTab={profileModalTab}
         onSelectLeague={(id) => setActiveLeagueId(id)}
       />
 

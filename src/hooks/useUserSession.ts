@@ -72,6 +72,19 @@ export function useUserSession() {
     !user.email?.includes('@groupbet.internal')
   );
 
+  const updateProfile = async (displayName: string, avatarUrl?: string | null, customAvatar?: boolean) => {
+    const { updateUserProfile } = await import('@/server/actions/profile');
+    const result = await updateUserProfile({ displayName, avatarUrl, customAvatar });
+    if (result.success) {
+      await queryClient.invalidateQueries({ queryKey: ['user-session'] });
+      await queryClient.invalidateQueries({ queryKey: ['player-career-stats'] });
+      await queryClient.invalidateQueries({ queryKey: ['survivor-board'] });
+      await queryClient.invalidateQueries({ queryKey: ['predictor-leaderboard'] });
+      await queryClient.invalidateQueries({ queryKey: ['league-history-matrix'] });
+    }
+    return result;
+  };
+
   return {
     user,
     isAuthenticated,
@@ -82,5 +95,6 @@ export function useUserSession() {
     isLoading,
     refetch,
     setSession,
+    updateProfile,
   };
 }

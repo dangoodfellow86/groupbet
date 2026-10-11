@@ -48,7 +48,7 @@ export async function syncAuthenticatedUser(
 
   // Check if user exists by auth_id or email
   const existingRes = await query(
-    `SELECT id, auth_id, display_name, email, avatar_url, created_at, updated_at
+    `SELECT id, auth_id, display_name, email, avatar_url, custom_avatar, created_at, updated_at
      FROM users
      WHERE auth_id = $1 OR (email = $2 AND email IS NOT NULL)`,
     [sbUser.id, email || '']
@@ -72,6 +72,7 @@ export async function syncAuthenticatedUser(
     );
     const needsAvatarUpdate = Boolean(
       rawAvatarUrl &&
+      !user.custom_avatar &&
       (!user.avatar_url || user.avatar_url.includes('dicebear.com') || user.avatar_url !== rawAvatarUrl)
     );
 

@@ -207,19 +207,57 @@ async function runTests() {
     console.log(`   ✅ Existing user profile successfully upgraded to Google photo "${upgradedUser.avatar_url}"`);
 
     // ----------------------------------------------------
-    // 6. CLEANUP
+    // 6. CUSTOM AVATAR PROTECTION (DO NOT OVERWRITE)
     // ----------------------------------------------------
-    console.log('\n6. Cleaning up test records...');
+    console.log('\n6. Testing custom avatar protection against Google OAuth overwrites...');
+    const customUserEmail = `custom_avatar_${Date.now()}@gmail.com`;
+    const myCustomAvatar = 'https://supabase.co/storage/v1/object/public/avatars/user-custom.webp';
+
+    // User creates account and sets custom avatar
+    const customUser = await syncAuthenticatedUser({
+      id: `custom_auth_${Date.now()}`,
+      email: customUserEmail,
+      user_metadata: { full_name: 'Custom User' },
+    });
+    // Mark as custom avatar
+    await query(
+      `UPDATE users SET avatar_url = $1, custom_avatar = TRUE WHERE id = $2`,
+      [myCustomAvatar, customUser.id]
+    );
+
+    // Later, user logs in via Google with a Google profile picture
+    const googleLoginPhoto = 'https://lh3.googleusercontent.com/a/google-new-photo';
+    const reSyncedWithGoogle = await syncAuthenticatedUser({
+      id: `custom_google_auth_${Date.now()}`,
+      email: customUserEmail,
+      user_metadata: {
+        full_name: 'Custom User',
+        picture: googleLoginPhoto,
+      },
+    });
+
+    assert.equal(
+      reSyncedWithGoogle.avatar_url,
+      myCustomAvatar,
+      'Custom avatar must NOT be overwritten by Google OAuth photo'
+    );
+    console.log('   ✅ Custom avatar preserved: Google photo ignored because custom_avatar=true');
+
+    // ----------------------------------------------------
+    // 7. CLEANUP
+    // ----------------------------------------------------
+    console.log('\n7. Cleaning up test records...');
     await query(`DELETE FROM lms_picks WHERE entry_id = $1`, [guestEntryId]);
     await query(`DELETE FROM lms_entries WHERE league_id = $1`, [leagueId]);
     await query(`DELETE FROM league_members WHERE league_id = $1`, [leagueId]);
     await query(`DELETE FROM leagues WHERE id = $1`, [leagueId]);
-    await query(`DELETE FROM users WHERE id IN ($1, $2, $3, $4, $5)`, [
+    await query(`DELETE FROM users WHERE id IN ($1, $2, $3, $4, $5, $6)`, [
       syncedUser.id,
       guestUser.id,
       claimedUser.id,
       googleUser.id,
       initialUser.id,
+      customUser.id,
     ]);
     console.log('   🧹 Test data cleaned up.');
 

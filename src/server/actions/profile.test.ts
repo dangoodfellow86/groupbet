@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { query } from '../db/pool';
 import { createLeague } from './leagues';
-import { getPlayerCareerStats } from './profile';
+import { getPlayerCareerStats, updateUserProfile, getPremierLeagueClubBadges } from './profile';
 
 async function runTests() {
   console.log('🧪 Starting Player Profile & Trophy Cabinet Test Suite...\n');
@@ -95,7 +95,73 @@ async function runTests() {
     const centurionBadge = updatedStats.badges.find((b) => b.id === 'points-centurion');
     assert.equal(centurionBadge?.isUnlocked, true, 'Points Centurion badge should now be unlocked (35 pts >= 30)');
 
-    console.log('\n✨ All Player Profile & Trophy Cabinet Tests Passed successfully!\n');
+    // 5. Test updateUserProfile (display name & custom avatar)
+    console.log('\n5. Testing updateUserProfile (display name & custom avatar)...');
+    const updatedName = `RenamedPlayer_${now}`;
+    const customAvatarUrl = 'https://supabase.co/storage/v1/object/public/avatars/test-avatar.webp';
+
+    const updateRes = await updateUserProfile(
+      {
+        displayName: updatedName,
+        avatarUrl: customAvatarUrl,
+        customAvatar: true,
+      },
+      hostId
+    );
+    assert.ok(updateRes.success, `Update profile failed: ${updateRes.message}`);
+    assert.equal(updateRes.user?.display_name, updatedName, 'Display name should be updated');
+    assert.equal(updateRes.user?.avatar_url, customAvatarUrl, 'Avatar URL should be updated');
+    assert.equal(updateRes.user?.custom_avatar, true, 'custom_avatar flag should be true');
+
+    // Verify in database directly
+    const userDbCheck = await query(
+      `SELECT display_name, avatar_url, custom_avatar FROM users WHERE id = $1`,
+      [hostId]
+    );
+    assert.equal(userDbCheck.rows[0].display_name, updatedName, 'Database display_name must match');
+    assert.equal(userDbCheck.rows[0].avatar_url, customAvatarUrl, 'Database avatar_url must match');
+    assert.equal(userDbCheck.rows[0].custom_avatar, true, 'Database custom_avatar flag must be true');
+    console.log('   ✅ updateUserProfile successfully persisted name & custom avatar');
+
+    // 6. Test updateUserProfile Validation Constraints
+    console.log('\n6. Testing profile validation constraints...');
+    const shortNameRes = await updateUserProfile({ displayName: 'A' }, hostId);
+    assert.equal(shortNameRes.success, false, 'Display name < 2 chars should fail');
+    assert.ok(
+      shortNameRes.message?.includes('at least 2 characters'),
+      'Should mention at least 2 characters'
+    );
+
+    const longNameRes = await updateUserProfile({ displayName: 'A'.repeat(31) }, hostId);
+    assert.equal(longNameRes.success, false, 'Display name > 30 chars should fail');
+    assert.ok(
+      longNameRes.message?.includes('cannot exceed 30 characters'),
+      'Should mention cannot exceed 30 characters'
+    );
+    console.log('   ✅ Profile validation correctly rejected invalid names (<2 and >30 chars)');
+
+    // 7. Test getPremierLeagueClubBadges
+    console.log('\n7. Testing getPremierLeagueClubBadges (Avatar Studio)...');
+    const badgesRes = await getPremierLeagueClubBadges();
+    assert.ok(badgesRes.success, 'getPremierLeagueClubBadges should succeed');
+    assert.ok(badgesRes.clubs.length >= 20, `Should return at least 20 Premier League clubs, got ${badgesRes.clubs.length}`);
+    const sampleClub = badgesRes.clubs[0];
+    assert.ok(sampleClub.id, 'Club should have ID');
+    assert.ok(sampleClub.name, 'Club should have name');
+    assert.ok(sampleClub.crestUrl, 'Club should have crest URL');
+    console.log(`   ✅ getPremierLeagueClubBadges returned ${badgesRes.clubs.length} official club crests`);
+
+    // 8. Cleanup
+    console.log('\n8. Cleaning up test records...');
+    await query(`DELETE FROM lms_picks WHERE entry_id = $1`, [entryId]);
+    await query(`DELETE FROM lms_entries WHERE league_id = $1`, [leagueId]);
+    await query(`DELETE FROM predictor_leaderboard WHERE league_id = $1`, [leagueId]);
+    await query(`DELETE FROM league_members WHERE league_id = $1`, [leagueId]);
+    await query(`DELETE FROM leagues WHERE id = $1`, [leagueId]);
+    await query(`DELETE FROM users WHERE id = $1`, [hostId]);
+    console.log('   🧹 Test data cleaned up.');
+
+    console.log('\n✨ All Player Profile & Avatar Studio Tests Passed successfully!\n');
   } catch (err) {
     console.error('❌ Test failed with error:', err);
     process.exit(1);

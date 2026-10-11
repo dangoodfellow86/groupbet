@@ -99,6 +99,7 @@ export interface User {
   display_name: string;
   email: string;
   avatar_url: string | null;
+  custom_avatar?: boolean;
   created_at?: string;
   updated_at?: string;
 }
