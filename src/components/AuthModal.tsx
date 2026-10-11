@@ -449,6 +449,28 @@ export function AuthModal({
               </>
             )}
           </button>
+
+          {/* Terms & Privacy Consent Note */}
+          <p className="text-[11px] text-center text-neutral-500 leading-normal mt-2.5">
+            By continuing, you agree to SquadPicks’{' '}
+            <a
+              href="/terms"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-neutral-300 hover:text-emerald-400 underline underline-offset-2 transition"
+            >
+              Terms of Service
+            </a>{' '}
+            and{' '}
+            <a
+              href="/privacy"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-neutral-300 hover:text-emerald-400 underline underline-offset-2 transition"
+            >
+              Privacy Policy
+            </a>.
+          </p>
         </form>
 
         {/* Alternative Auth Option Toggles */}

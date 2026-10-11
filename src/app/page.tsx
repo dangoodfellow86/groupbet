@@ -20,6 +20,8 @@ import { UserProfileMenu } from '@/components/UserProfileMenu';
 import { MatchdayLiveNotifier } from '@/components/MatchdayLiveNotifier';
 import { SquadPicksLogo } from '@/components/SquadPicksLogo';
 import { MobileBottomNav, MobileNavTab } from '@/components/MobileBottomNav';
+import { SiteFooter } from '@/components/SiteFooter';
+import { LegalModal } from '@/components/LegalModal';
 import { StandingsShareItem } from '@/lib/sharing';
 import { useUserSession } from '@/hooks/useUserSession';
 import { useMatchdayRealtime } from '@/hooks/useMatchdayRealtime';
@@ -112,6 +114,8 @@ export default function DashboardPage() {
   const [authModalMode, setAuthModalMode] = useState<'signin' | 'signup'>('signin');
   const [authPrompt, setAuthPrompt] = useState<{ title?: string; subtitle?: string } | null>(null);
   const [authErrorParam, setAuthErrorParam] = useState<string | null>(null);
+  const [isLegalModalOpen, setIsLegalModalOpen] = useState(false);
+  const [legalModalTab, setLegalModalTab] = useState<'terms' | 'privacy'>('terms');
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -513,6 +517,10 @@ export default function DashboardPage() {
               onOpenProfile={(tab = 'overview') => {
                 setProfileModalTab(tab);
                 setIsProfileModalOpen(true);
+              }}
+              onOpenLegal={(tab = 'terms') => {
+                setLegalModalTab(tab);
+                setIsLegalModalOpen(true);
               }}
               onUserLoggedOut={() => {
                 refetchSession();
@@ -1213,15 +1221,20 @@ export default function DashboardPage() {
         onDismiss={clearLatestEvent}
       />
 
-      {/* Footer */}
-      <footer className="border-t border-brand-800/80 bg-brand-950 px-4 sm:px-8 py-6 text-center text-xs text-brand-400">
-        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
-          <p>© 2026 SquadPicks. Football Predictor & Last Man Standing Platform.</p>
-          <p className="font-mono text-[11px] text-brand-600">
-            Powered by Football-Data.org • Next.js 16 • React 19
-          </p>
-        </div>
-      </footer>
+      {/* Legal & Policies Modal */}
+      <LegalModal
+        isOpen={isLegalModalOpen}
+        onClose={() => setIsLegalModalOpen(false)}
+        initialTab={legalModalTab}
+      />
+
+      {/* Persistent Site Footer */}
+      <SiteFooter
+        onOpenLegal={(tab) => {
+          setLegalModalTab(tab);
+          setIsLegalModalOpen(true);
+        }}
+      />
     </div>
   );
 }

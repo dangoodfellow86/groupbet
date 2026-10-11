@@ -23,6 +23,7 @@ import {
   LogIn,
 } from 'lucide-react';
 import { SquadPicksLogo } from '@/components/SquadPicksLogo';
+import { SiteFooter } from '@/components/SiteFooter';
 
 interface JoinPageProps {
   params: Promise<{ code: string }>;
@@ -206,8 +207,8 @@ export default function JoinLeaguePage({ params }: JoinPageProps) {
   const isLms = league?.type === 'LAST_MAN_STANDING' || isAllInOne;
 
   return (
-    <div className="min-h-screen bg-brand-950 text-brand-50 flex items-center justify-center p-4 py-10">
-      <div className="max-w-md w-full bg-brand-900 border border-brand-800 rounded-3xl p-6 sm:p-8 shadow-2xl flex flex-col gap-6">
+    <div className="min-h-screen bg-brand-950 text-brand-50 flex flex-col items-center justify-between p-4 py-8">
+      <div className="max-w-md w-full bg-brand-900 border border-brand-800 rounded-3xl p-6 sm:p-8 shadow-2xl flex flex-col gap-6 my-auto">
         {/* Brand Banner */}
         <div className="flex items-center justify-between pb-4 border-b border-brand-800">
           <SquadPicksLogo size="sm" variant="full" />
@@ -442,6 +443,27 @@ export default function JoinLeaguePage({ params }: JoinPageProps) {
                   </>
                 )}
               </button>
+
+              <p className="text-[11px] text-center text-neutral-500 leading-normal mt-1">
+                By joining, you agree to SquadPicks’{' '}
+                <a
+                  href="/terms"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-neutral-300 hover:text-emerald-400 underline underline-offset-2 transition"
+                >
+                  Terms
+                </a>{' '}
+                and{' '}
+                <a
+                  href="/privacy"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-neutral-300 hover:text-emerald-400 underline underline-offset-2 transition"
+                >
+                  Privacy Policy
+                </a>.
+              </p>
             </form>
           </div>
         )}
@@ -453,6 +475,9 @@ export default function JoinLeaguePage({ params }: JoinPageProps) {
             : 'Predict scorelines and outcomes for each Premier League fixture to climb the group leaderboard.'}
         </div>
       </div>
+
+      {/* Persistent Site Footer */}
+      <SiteFooter className="w-full max-w-4xl mt-8 bg-transparent" hideTopBorder />
     </div>
   );
 }

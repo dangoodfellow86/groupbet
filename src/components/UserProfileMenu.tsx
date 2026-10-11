@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
+import Link from 'next/link';
 import { User } from '@/core/types/database';
 import { signOut } from '@/server/actions/auth';
 import {
@@ -13,6 +14,8 @@ import {
   LogIn,
   Trophy,
   Pencil,
+  Scale,
+  FileText,
 } from 'lucide-react';
 
 interface UserProfileMenuProps {
@@ -20,6 +23,7 @@ interface UserProfileMenuProps {
   onOpenAuth: (mode?: 'signin' | 'signup') => void;
   onOpenJoinCode: () => void;
   onOpenProfile?: (tab?: 'overview' | 'trophies' | 'tournaments' | 'edit') => void;
+  onOpenLegal?: (tab: 'terms' | 'privacy') => void;
   onUserLoggedOut?: () => void;
 }
 
@@ -28,6 +32,7 @@ export function UserProfileMenu({
   onOpenAuth,
   onOpenJoinCode,
   onOpenProfile,
+  onOpenLegal,
   onUserLoggedOut,
 }: UserProfileMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
@@ -203,6 +208,40 @@ export function UserProfileMenu({
                 <span>Sign In to Existing Account</span>
               </button>
             )}
+
+            <div className="pt-1.5 pb-1 border-t border-neutral-800/80 flex items-center justify-between px-2 text-[11px] text-neutral-400">
+              <Link
+                href="/terms"
+                onClick={(e) => {
+                  if (onOpenLegal) {
+                    e.preventDefault();
+                    setIsOpen(false);
+                    onOpenLegal('terms');
+                  } else {
+                    setIsOpen(false);
+                  }
+                }}
+                className="hover:text-emerald-400 transition"
+              >
+                Terms of Service
+              </Link>
+              <span className="text-neutral-700">•</span>
+              <Link
+                href="/privacy"
+                onClick={(e) => {
+                  if (onOpenLegal) {
+                    e.preventDefault();
+                    setIsOpen(false);
+                    onOpenLegal('privacy');
+                  } else {
+                    setIsOpen(false);
+                  }
+                }}
+                className="hover:text-emerald-400 transition"
+              >
+                Privacy Policy
+              </Link>
+            </div>
 
             <button
               type="button"
