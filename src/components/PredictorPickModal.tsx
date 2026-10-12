@@ -51,6 +51,7 @@ interface PredictorPickModalProps {
   hasOtherGameweekPick?: boolean;
   onPredictionSaved?: (fixtureId: string, prediction: UserFixturePrediction) => void;
   onPredictionRemoved?: (fixtureId: string) => void;
+  onOpenRules?: () => void;
 }
 
 export function PredictorPickModal({
@@ -63,6 +64,7 @@ export function PredictorPickModal({
   hasOtherGameweekPick,
   onPredictionSaved,
   onPredictionRemoved,
+  onOpenRules,
 }: PredictorPickModalProps) {
   const [homeScore, setHomeScore] = useState<number>(2);
   const [awayScore, setAwayScore] = useState<number>(1);
@@ -637,6 +639,17 @@ export function PredictorPickModal({
             >
               <Trash2 className="w-3.5 h-3.5" />
               <span>Remove Pick</span>
+            </button>
+          ) : onOpenRules ? (
+            <button
+              type="button"
+              onClick={() => {
+                onClose();
+                onOpenRules();
+              }}
+              className="text-[11px] text-neutral-400 hover:text-amber-400 transition cursor-pointer"
+            >
+              Points Rules →
             </button>
           ) : (
             <div />

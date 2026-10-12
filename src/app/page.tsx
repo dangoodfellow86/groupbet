@@ -22,6 +22,8 @@ import { SquadPicksLogo } from '@/components/SquadPicksLogo';
 import { MobileBottomNav, MobileNavTab } from '@/components/MobileBottomNav';
 import { SiteFooter } from '@/components/SiteFooter';
 import { LegalModal } from '@/components/LegalModal';
+import { RulesModal, RulesTab } from '@/components/rules/RulesModal';
+import { OnboardingModal, hasSeenOnboarding } from '@/components/onboarding/OnboardingModal';
 import { StandingsShareItem } from '@/lib/sharing';
 import { useUserSession } from '@/hooks/useUserSession';
 import { useMatchdayRealtime } from '@/hooks/useMatchdayRealtime';
@@ -54,6 +56,7 @@ import {
   Gamepad2,
   Copy,
   Check,
+  BookOpen,
 } from 'lucide-react';
 
 type FixtureItem = FixturesApiResponse['fixtures'][number];
@@ -116,6 +119,9 @@ export default function DashboardPage() {
   const [authErrorParam, setAuthErrorParam] = useState<string | null>(null);
   const [isLegalModalOpen, setIsLegalModalOpen] = useState(false);
   const [legalModalTab, setLegalModalTab] = useState<'terms' | 'privacy'>('terms');
+  const [isRulesModalOpen, setIsRulesModalOpen] = useState(false);
+  const [rulesModalTab, setRulesModalTab] = useState<RulesTab>('lms');
+  const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -132,6 +138,14 @@ export default function DashboardPage() {
         const url = new URL(window.location.href);
         url.searchParams.delete('auth_error');
         window.history.replaceState({}, '', url.pathname + (url.search ? url.search : ''));
+      }
+
+      // Check first-time player onboarding
+      if (params.get('tour') === 'true' || !hasSeenOnboarding()) {
+        setIsOnboardingOpen(true);
+      }
+      if (params.get('rules') === 'true') {
+        setIsRulesModalOpen(true);
       }
     }
   }, []);
@@ -506,6 +520,20 @@ export default function DashboardPage() {
               <span>New Game</span>
             </button>
 
+            {/* Rules & Guide Button */}
+            <button
+              type="button"
+              onClick={() => {
+                setRulesModalTab(gameMode === 'predictor' ? 'predictor' : 'lms');
+                setIsRulesModalOpen(true);
+              }}
+              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 text-neutral-300 text-xs font-semibold transition cursor-pointer"
+              title="How to Play & Game Rules"
+            >
+              <BookOpen className="w-3.5 h-3.5 text-emerald-400" />
+              <span className="hidden sm:inline">Rules</span>
+            </button>
+
             {/* User Profile Menu */}
             <UserProfileMenu
               user={user}
@@ -521,6 +549,10 @@ export default function DashboardPage() {
               onOpenLegal={(tab = 'terms') => {
                 setLegalModalTab(tab);
                 setIsLegalModalOpen(true);
+              }}
+              onOpenRules={(tab = 'lms') => {
+                setRulesModalTab(tab);
+                setIsRulesModalOpen(true);
               }}
               onUserLoggedOut={() => {
                 refetchSession();
@@ -1076,6 +1108,10 @@ export default function DashboardPage() {
         leagueTeamClaims={leagueTeamClaims}
         onPickConfirmed={handlePickConfirmed}
         onPickRemoved={handleLmsPickRemoved}
+        onOpenRules={() => {
+          setRulesModalTab('lms');
+          setIsRulesModalOpen(true);
+        }}
       />
 
       {/* Predictor Pick Modal */}
@@ -1104,6 +1140,10 @@ export default function DashboardPage() {
         }
         onPredictionSaved={handlePredictionSaved}
         onPredictionRemoved={handlePredictorPickRemoved}
+        onOpenRules={() => {
+          setRulesModalTab('predictor');
+          setIsRulesModalOpen(true);
+        }}
       />
 
       {/* Create Game Modal */}
@@ -1228,11 +1268,32 @@ export default function DashboardPage() {
         initialTab={legalModalTab}
       />
 
+      {/* Official Rules & How to Play Modal */}
+      <RulesModal
+        isOpen={isRulesModalOpen}
+        onClose={() => setIsRulesModalOpen(false)}
+        initialTab={rulesModalTab}
+      />
+
+      {/* First-Time Player Quick Tour Onboarding Modal */}
+      <OnboardingModal
+        isOpen={isOnboardingOpen}
+        onClose={() => setIsOnboardingOpen(false)}
+        onOpenRules={() => {
+          setRulesModalTab('lms');
+          setIsRulesModalOpen(true);
+        }}
+      />
+
       {/* Persistent Site Footer */}
       <SiteFooter
         onOpenLegal={(tab) => {
           setLegalModalTab(tab);
           setIsLegalModalOpen(true);
+        }}
+        onOpenRules={(tab = 'lms') => {
+          setRulesModalTab(tab);
+          setIsRulesModalOpen(true);
         }}
       />
     </div>

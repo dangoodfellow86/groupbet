@@ -24,6 +24,8 @@ import {
 } from 'lucide-react';
 import { SquadPicksLogo } from '@/components/SquadPicksLogo';
 import { SiteFooter } from '@/components/SiteFooter';
+import { RulesModal, RulesTab } from '@/components/rules/RulesModal';
+import { LegalModal } from '@/components/LegalModal';
 
 interface JoinPageProps {
   params: Promise<{ code: string }>;
@@ -47,6 +49,10 @@ export default function JoinLeaguePage({ params }: JoinPageProps) {
 
   const [isJoining, setIsJoining] = useState(false);
   const [joinSuccess, setJoinSuccess] = useState(false);
+  const [isRulesModalOpen, setIsRulesModalOpen] = useState(false);
+  const [rulesModalTab, setRulesModalTab] = useState<RulesTab>('lms');
+  const [isLegalModalOpen, setIsLegalModalOpen] = useState(false);
+  const [legalModalTab, setLegalModalTab] = useState<'terms' | 'privacy'>('terms');
 
   useEffect(() => {
     async function loadPreview() {
@@ -469,15 +475,52 @@ export default function JoinLeaguePage({ params }: JoinPageProps) {
         )}
 
         {/* Footer Rules Note */}
-        <div className="text-center text-[11px] text-neutral-500 leading-relaxed border-t border-neutral-800/80 pt-3">
-          {isLms
-            ? 'Pick 1 winning team each week. If your team wins, you advance. Lose or draw and you lose a life. No team can be picked twice.'
-            : 'Predict scorelines and outcomes for each Premier League fixture to climb the group leaderboard.'}
+        <div className="text-center text-[11px] text-neutral-500 leading-relaxed border-t border-neutral-800/80 pt-3 flex flex-col items-center gap-1.5">
+          <p>
+            {isLms
+              ? 'Pick 1 winning team each week. If your team wins, you advance. Lose or draw and you lose a life. No team can be picked twice.'
+              : 'Predict scorelines and outcomes for each Premier League fixture to climb the group leaderboard.'}
+          </p>
+          <button
+            type="button"
+            onClick={() => {
+              setRulesModalTab(isLms ? 'lms' : 'predictor');
+              setIsRulesModalOpen(true);
+            }}
+            className="text-emerald-400 hover:text-emerald-300 font-semibold transition cursor-pointer"
+          >
+            Read full official game rules →
+          </button>
         </div>
       </div>
 
+      {/* Rules & Game Modes Modal */}
+      <RulesModal
+        isOpen={isRulesModalOpen}
+        onClose={() => setIsRulesModalOpen(false)}
+        initialTab={rulesModalTab}
+      />
+
+      {/* Legal & Policies Modal */}
+      <LegalModal
+        isOpen={isLegalModalOpen}
+        onClose={() => setIsLegalModalOpen(false)}
+        initialTab={legalModalTab}
+      />
+
       {/* Persistent Site Footer */}
-      <SiteFooter className="w-full max-w-4xl mt-8 bg-transparent" hideTopBorder />
+      <SiteFooter
+        className="w-full max-w-4xl mt-8 bg-transparent"
+        hideTopBorder
+        onOpenRules={(tab = 'lms') => {
+          setRulesModalTab(tab);
+          setIsRulesModalOpen(true);
+        }}
+        onOpenLegal={(tab) => {
+          setLegalModalTab(tab);
+          setIsLegalModalOpen(true);
+        }}
+      />
     </div>
   );
 }

@@ -7,12 +7,14 @@ import { ShieldCheck, Mail, Heart, ExternalLink } from 'lucide-react';
 
 export interface SiteFooterProps {
   onOpenLegal?: (tab: 'terms' | 'privacy') => void;
+  onOpenRules?: (tab?: 'lms' | 'predictor' | 'navigation') => void;
   className?: string;
   hideTopBorder?: boolean;
 }
 
 export function SiteFooter({
   onOpenLegal,
+  onOpenRules,
   className = '',
   hideTopBorder = false,
 }: SiteFooterProps) {
@@ -48,6 +50,18 @@ export function SiteFooter({
 
           {/* Navigation & Legal Links */}
           <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs font-medium">
+            {onOpenRules && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => onOpenRules('lms')}
+                  className="text-neutral-400 hover:text-emerald-400 transition cursor-pointer"
+                >
+                  How to Play
+                </button>
+                <span className="text-neutral-700">•</span>
+              </>
+            )}
             <Link
               href="/terms"
               onClick={(e) => handleLegalClick(e, 'terms')}

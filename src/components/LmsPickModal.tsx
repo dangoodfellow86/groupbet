@@ -30,6 +30,7 @@ interface LmsPickModalProps {
   leagueTeamClaims?: Record<string, LeagueTeamClaim>;
   onPickConfirmed?: (teamId: string) => void;
   onPickRemoved?: () => void;
+  onOpenRules?: () => void;
 }
 
 export function LmsPickModal({
@@ -43,6 +44,7 @@ export function LmsPickModal({
   leagueTeamClaims,
   onPickConfirmed,
   onPickRemoved,
+  onOpenRules,
 }: LmsPickModalProps) {
   const [isPending, startTransition] = useTransition();
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -253,7 +255,7 @@ export function LmsPickModal({
 
         {/* Actions */}
         <div className="flex items-center justify-between gap-3 pt-2 border-t border-neutral-800">
-          <div>
+          <div className="flex items-center gap-2">
             {isOwnPick && !isKickoffPassed && (
               <button
                 type="button"
@@ -263,6 +265,18 @@ export function LmsPickModal({
               >
                 <Trash2 className="w-3.5 h-3.5" />
                 Remove Pick
+              </button>
+            )}
+            {onOpenRules && (
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onOpenRules();
+                }}
+                className="text-[11px] text-neutral-400 hover:text-emerald-400 transition cursor-pointer"
+              >
+                Rules &amp; Lives →
               </button>
             )}
           </div>
