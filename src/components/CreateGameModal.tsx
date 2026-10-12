@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { PlusCircle, Shield, Trophy, Heart, Calendar, User as UserIcon, X, Loader2, Sparkles, Target, Lock } from 'lucide-react';
 import { createLeague, CreateLeagueResult } from '@/server/actions/leagues';
 import { LeagueType } from '@/core/types/database';
+import { useGameweekFixtures } from '@/hooks/useFootballData';
 
 interface CreateGameModalProps {
   isOpen: boolean;
@@ -22,6 +23,7 @@ export function CreateGameModal({
   activeGameweek = 6,
   onGameCreated,
 }: CreateGameModalProps) {
+  const [competitionCode, setCompetitionCode] = useState<'PL' | 'ELC'>('PL');
   const [name, setName] = useState('');
   const [type, setType] = useState<LeagueType>('ALL_IN_ONE');
   const [startingGameweek, setStartingGameweek] = useState(activeGameweek);
@@ -33,11 +35,16 @@ export function CreateGameModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
+  // Dynamically resolve active gameweek for selected competition
+  const { data: compFixturesData } = useGameweekFixtures(undefined, competitionCode);
+  const compActiveGameweek = compFixturesData?.activeGameweek ?? (competitionCode === 'ELC' ? 9 : activeGameweek);
+  const maxGameweeks = competitionCode === 'ELC' ? 46 : 38;
+
   useEffect(() => {
-    if (isOpen && activeGameweek) {
-      setStartingGameweek(activeGameweek);
+    if (isOpen && compActiveGameweek) {
+      setStartingGameweek(compActiveGameweek);
     }
-  }, [isOpen, activeGameweek]);
+  }, [isOpen, compActiveGameweek, competitionCode]);
 
   if (!isOpen) return null;
 
@@ -59,6 +66,7 @@ export function CreateGameModal({
       const res = await createLeague({
         name: name.trim(),
         type,
+        competitionCode,
         startingGameweek,
         startingLives: type === 'PREDICTOR' ? 0 : startingLives,
         creatorDisplayName: creatorDisplayName.trim(),
@@ -112,6 +120,51 @@ export function CreateGameModal({
         )}
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          {/* League / Competition Selector */}
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-semibold uppercase tracking-wider text-neutral-400">
+                League / Competition
+              </label>
+              <span className="text-[10px] text-emerald-400 font-semibold uppercase tracking-wider">
+                Commissioner Choice
+              </span>
+            </div>
+            <div className="grid grid-cols-2 gap-2.5">
+              <button
+                type="button"
+                onClick={() => setCompetitionCode('PL')}
+                className={`p-3 rounded-2xl border text-left flex items-start gap-2.5 transition ${
+                  competitionCode === 'PL'
+                    ? 'bg-emerald-500/15 border-emerald-500/60 text-neutral-100 shadow-md ring-1 ring-emerald-500/40'
+                    : 'bg-neutral-950/70 border-neutral-800 text-neutral-400 hover:border-neutral-700'
+                }`}
+              >
+                <div className="text-xl shrink-0 mt-0.5">🦁</div>
+                <div className="min-w-0">
+                  <div className="font-bold text-xs text-neutral-100 truncate">Premier League</div>
+                  <div className="text-[10px] text-neutral-400 mt-0.5">20 Clubs • 38 GWs</div>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setCompetitionCode('ELC')}
+                className={`p-3 rounded-2xl border text-left flex items-start gap-2.5 transition ${
+                  competitionCode === 'ELC'
+                    ? 'bg-amber-500/15 border-amber-500/60 text-neutral-100 shadow-md ring-1 ring-amber-500/40'
+                    : 'bg-neutral-950/70 border-neutral-800 text-neutral-400 hover:border-neutral-700'
+                }`}
+              >
+                <div className="text-xl shrink-0 mt-0.5">🏆</div>
+                <div className="min-w-0">
+                  <div className="font-bold text-xs text-neutral-100 truncate">Championship</div>
+                  <div className="text-[10px] text-neutral-400 mt-0.5">24 Clubs • 46 GWs</div>
+                </div>
+              </button>
+            </div>
+          </div>
+
           {/* Game Type Selector */}
           <div className="flex flex-col gap-2">
             <label className="text-xs font-semibold uppercase tracking-wider text-neutral-400">
@@ -277,11 +330,11 @@ export function CreateGameModal({
                     onChange={(e) => setStartingGameweek(Number(e.target.value))}
                     className="bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2 text-xs font-medium text-neutral-200 focus:outline-none focus:border-emerald-500/60 transition"
                   >
-                    {Array.from({ length: 5 }, (_, idx) => activeGameweek + idx)
-                      .filter((gw) => gw <= 38)
+                    {Array.from({ length: 6 }, (_, idx) => compActiveGameweek + idx)
+                      .filter((gw) => gw <= maxGameweeks)
                       .map((gw) => (
                         <option key={gw} value={gw}>
-                          Gameweek {gw} {gw === activeGameweek ? '(Current Active)' : ''}
+                          Gameweek {gw} {gw === compActiveGameweek ? '(Current Active)' : ''}
                         </option>
                       ))}
                   </select>
@@ -339,7 +392,7 @@ export function CreateGameModal({
             </div>
           ) : (
             <div className="p-3 rounded-xl bg-neutral-950/70 border border-neutral-800/80 text-xs text-neutral-400">
-              Starts at <strong className="text-neutral-200">Gameweek {startingGameweek}</strong>. Points awarded for Exact Score (+3), Match Outcome (+1), BTTS (+1), and Over/Under (+1).
+              Starts at <strong className="text-neutral-200">Gameweek {startingGameweek}</strong> ({competitionCode === 'ELC' ? 'Championship' : 'Premier League'}). Points awarded for Exact Score (+3), Match Outcome (+1), BTTS (+1), and Over/Under (+1).
             </div>
           )}
 
@@ -373,8 +426,10 @@ export function CreateGameModal({
                         : 'bg-neutral-950 border-neutral-800 text-neutral-400 hover:border-neutral-700'
                     }`}
                   >
-                    <span className="font-bold">All 10 Matches</span>
-                    <span className="text-[10px] text-neutral-500 font-normal">Predict every fixture</span>
+                    <span className="font-bold">All {competitionCode === 'ELC' ? 12 : 10} Matches</span>
+                    <span className="text-[10px] text-neutral-500 font-normal">
+                      Predict {competitionCode === 'ELC' ? 'all 12 fixtures' : 'every fixture'}
+                    </span>
                   </button>
                 </div>
               </div>

@@ -59,9 +59,18 @@ export function LeagueSwitcher({
               {activeLeague ? activeLeague.name : 'No Active Game'}
             </span>
             {activeLeague && (
-              <span className="text-[10px] uppercase font-mono px-1 py-0.2 rounded bg-neutral-800 text-neutral-400">
-                {activeLeague.type === 'ALL_IN_ONE' ? 'ALL-IN-ONE' : activeLeague.type === 'LAST_MAN_STANDING' ? 'LMS' : 'PRED'}
-              </span>
+              <div className="flex items-center gap-1">
+                <span className="text-[10px] uppercase font-mono px-1 py-0.2 rounded bg-neutral-800 text-neutral-400">
+                  {activeLeague.type === 'ALL_IN_ONE' ? 'ALL-IN-ONE' : activeLeague.type === 'LAST_MAN_STANDING' ? 'LMS' : 'PRED'}
+                </span>
+                <span className={`text-[9px] font-bold px-1 py-0.2 rounded border ${
+                  activeLeague.competition_code === 'ELC'
+                    ? 'bg-amber-500/15 text-amber-300 border-amber-500/30'
+                    : 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
+                }`}>
+                  {activeLeague.competition_code === 'ELC' ? 'EFL' : 'PL'}
+                </span>
+              </div>
             )}
           </div>
         </div>
@@ -112,7 +121,16 @@ export function LeagueSwitcher({
                         )}
                       </div>
                       <div className="truncate">
-                        <div className="text-xs font-bold truncate">{league.name}</div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs font-bold truncate">{league.name}</span>
+                          <span className={`text-[8px] font-bold px-1 py-0.1 rounded border shrink-0 ${
+                            league.competition_code === 'ELC'
+                              ? 'bg-amber-500/15 text-amber-300 border-amber-500/30'
+                              : 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
+                          }`}>
+                            {league.competition_code === 'ELC' ? 'EFL' : 'PL'}
+                          </span>
+                        </div>
                         <div className="text-[10px] text-neutral-400 flex items-center gap-1.5">
                           <span>{isAllInOne ? 'LMS + Pred' : isLms ? 'LMS' : 'Predictor'}</span>
                           <span>•</span>

@@ -16,9 +16,10 @@ async function runTests() {
     console.log('1. Fetching upcoming scheduled fixture...');
     const fixRes = await query(
       `
-      SELECT f.id, f.kickoff_time, gw.gameweek_number, ht.name AS home_team, at.name AS away_team
+      SELECT f.id, f.kickoff_time, gw.gameweek_number, ht.name AS home_team, at.name AS away_team, c.code AS competition_code
       FROM fixtures f
       JOIN gameweeks gw ON f.gameweek_id = gw.id
+      JOIN competitions c ON gw.competition_id = c.id
       JOIN teams ht ON f.home_team_id = ht.id
       JOIN teams at ON f.away_team_id = at.id
       WHERE f.status = 'SCHEDULED' AND f.kickoff_time > NOW()
@@ -48,6 +49,7 @@ async function runTests() {
     const leagueRes = await createLeague({
       name: 'Premier League Predictor 2026',
       type: 'PREDICTOR',
+      competitionCode: fixture.competition_code,
       creatorDisplayName: hostName,
       creatorEmail: hostEmail,
       startingGameweek: targetGw,

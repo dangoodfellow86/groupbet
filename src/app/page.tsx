@@ -73,9 +73,13 @@ export default function DashboardPage() {
     refetch: refetchSession,
   } = useUserSession();
 
-  // Query current fixtures to dynamically identify the active gameweek
-  const { data: currentFixturesData } = useGameweekFixtures();
-  const activeGameweek = currentFixturesData?.activeGameweek ?? currentFixturesData?.gameweek ?? 6;
+  const activeCompCode = activeLeague?.competition_code || 'PL';
+  const activeCompName = activeLeague?.competition_name || (activeCompCode === 'ELC' ? 'Championship' : 'Premier League');
+  const maxGameweeks = activeCompCode === 'ELC' ? 46 : 38;
+
+  // Query current fixtures to dynamically identify the active gameweek for the active league competition
+  const { data: currentFixturesData } = useGameweekFixtures(undefined, activeCompCode);
+  const activeGameweek = currentFixturesData?.activeGameweek ?? currentFixturesData?.gameweek ?? (activeCompCode === 'ELC' ? 9 : 6);
 
   const [gameMode, setGameMode] = useState<'lms' | 'predictor'>('lms');
   const [mobileTab, setMobileTab] = useState<MobileNavTab>('picks');
@@ -84,6 +88,11 @@ export default function DashboardPage() {
   const selectedGameweek = selectedGameweekOverride ?? activeGameweek;
   const setSelectedGameweek = (gw: number) => setSelectedGameweekOverride(gw);
   const [hasCopiedInviteCode, setHasCopiedInviteCode] = useState(false);
+
+  // Reset gameweek override when switching leagues or competitions
+  useEffect(() => {
+    setSelectedGameweekOverride(null);
+  }, [activeLeague?.id, activeLeague?.competition_code]);
 
   // Synchronize game mode with active league type
   useEffect(() => {
@@ -619,6 +628,13 @@ export default function DashboardPage() {
               <div className="min-w-0">
                 <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
                   <div className="font-bold text-neutral-100 text-sm truncate">{activeLeague?.name}</div>
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                    activeCompCode === 'ELC'
+                      ? 'bg-amber-500/15 text-amber-300 border-amber-500/30'
+                      : 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
+                  }`}>
+                    {activeCompName}
+                  </span>
                   {activeLeague?.type === 'ALL_IN_ONE' && (
                     <span className="px-1.5 py-0.5 rounded text-[10px] font-extrabold uppercase tracking-wide bg-gradient-to-r from-emerald-500/20 to-amber-500/20 text-emerald-300 border border-emerald-500/30">
                       All-in-One
@@ -783,6 +799,9 @@ export default function DashboardPage() {
             <WeeklyFixtures
               initialGameweek={activeGameweek}
               gameweek={selectedGameweek}
+              competitionCode={activeCompCode}
+              competitionName={activeCompName}
+              maxGameweeks={maxGameweeks}
               onGameweekChange={setSelectedGameweek}
               selectedTeamId={activeGameweekPickTeamId}
               pickedTeamIds={burnedTeamIdsForSelectedGw}
@@ -826,7 +845,7 @@ export default function DashboardPage() {
                   />
                 )}
 
-                <LeagueTable />
+                <LeagueTable competitionCode={activeCompCode} competitionName={activeCompName} />
 
                 {/* Rules Overview Card (Adaptive to game mode) */}
                 {gameMode === 'predictor' ? (
@@ -855,7 +874,7 @@ export default function DashboardPage() {
             ) : (
               /* Matchday Live Hub Right Column */
               <>
-                <LeagueTable />
+                <LeagueTable competitionCode={activeCompCode} competitionName={activeCompName} />
                 <div className="p-4 rounded-2xl border border-neutral-800 bg-neutral-900/60 backdrop-blur text-xs text-neutral-400 flex flex-col gap-2.5">
                   <div className="flex items-center gap-2 text-emerald-400 font-bold">
                     <Flame className="w-4 h-4" />
@@ -885,6 +904,9 @@ export default function DashboardPage() {
             <WeeklyFixtures
               initialGameweek={activeGameweek}
               gameweek={selectedGameweek}
+              competitionCode={activeCompCode}
+              competitionName={activeCompName}
+              maxGameweeks={maxGameweeks}
               onGameweekChange={setSelectedGameweek}
               selectedTeamId={activeGameweekPickTeamId}
               pickedTeamIds={burnedTeamIdsForSelectedGw}
@@ -959,12 +981,15 @@ export default function DashboardPage() {
               <WeeklyFixtures
                 initialGameweek={activeGameweek}
                 gameweek={selectedGameweek}
+                competitionCode={activeCompCode}
+                competitionName={activeCompName}
+                maxGameweeks={maxGameweeks}
                 onGameweekChange={setSelectedGameweek}
                 interactive={false}
                 gameMode="fixtures"
                 onNudgeClick={() => handleOpenShare('deadline')}
               />
-              <LeagueTable />
+              <LeagueTable competitionCode={activeCompCode} competitionName={activeCompName} />
             </div>
           )}
 

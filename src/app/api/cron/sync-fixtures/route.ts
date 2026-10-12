@@ -34,10 +34,17 @@ async function handleSync(req: NextRequest) {
   }
 
   try {
-    const result = await syncFootballData();
+    const requestedComp = req.nextUrl.searchParams.get('comp')?.toUpperCase();
+    const competitionsToSync = requestedComp ? [requestedComp] : ['PL', 'ELC'];
+    const results: Record<string, any> = {};
+
+    for (const comp of competitionsToSync) {
+      results[comp] = await syncFootballData(comp);
+    }
+
     return NextResponse.json({
       success: true,
-      synced: result,
+      synced: results,
     });
   } catch (error: any) {
     console.error('[API Cron sync-fixtures error]:', error);

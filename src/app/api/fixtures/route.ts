@@ -6,30 +6,51 @@ import { syncFootballData } from '@/server/services/football-sync';
 export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl;
   const gwParam = searchParams.get('gw');
+  const compParam = (searchParams.get('comp') || 'PL').toUpperCase();
   const shouldRefresh = searchParams.get('refresh') === 'true';
   const gwNumber = gwParam ? parseInt(gwParam, 10) : undefined;
 
   // On-demand sync when requested (e.g. user clicked refresh in UI)
   if (shouldRefresh) {
     try {
-      await syncFootballData('PL');
+      await syncFootballData(compParam);
     } catch (syncErr: any) {
-      console.warn('[API /api/fixtures] On-demand sync failed:', syncErr.message);
+      console.warn(`[API /api/fixtures] On-demand sync failed for ${compParam}:`, syncErr.message);
     }
   }
 
   try {
-    // 1. Determine active and target gameweek
-    const activeGwRes = await query<{ gameweek_number: number }>(
-      'SELECT gameweek_number FROM gameweeks WHERE is_current = TRUE LIMIT 1'
+    // 1. Resolve competition metadata
+    const compRes = await query<{ id: string; name: string; code: string }>(
+      'SELECT id, name, code FROM competitions WHERE UPPER(code) = $1 LIMIT 1',
+      [compParam]
     );
-    let activeGameweek = activeGwRes.rows[0]?.gameweek_number;
-    if (!activeGameweek) {
-      const nextGwRes = await query<{ gameweek_number: number }>(
-        'SELECT gameweek_number FROM gameweeks WHERE is_completed = FALSE ORDER BY gameweek_number ASC LIMIT 1'
+    const comp = compRes.rows[0];
+    const compId = comp?.id;
+
+    // 2. Determine active and target gameweek
+    let activeGameweek = 1;
+    if (compId) {
+      const activeGwRes = await query<{ gameweek_number: number }>(
+        'SELECT gameweek_number FROM gameweeks WHERE competition_id = $1 AND is_current = TRUE LIMIT 1',
+        [compId]
       );
-      activeGameweek = nextGwRes.rows[0]?.gameweek_number || 1;
+      if (activeGwRes.rows[0]) {
+        activeGameweek = activeGwRes.rows[0].gameweek_number;
+      } else {
+        const nextGwRes = await query<{ gameweek_number: number }>(
+          'SELECT gameweek_number FROM gameweeks WHERE competition_id = $1 AND is_completed = FALSE ORDER BY gameweek_number ASC LIMIT 1',
+          [compId]
+        );
+        activeGameweek = nextGwRes.rows[0]?.gameweek_number || 1;
+      }
+    } else {
+      const fallbackGwRes = await query<{ gameweek_number: number }>(
+        'SELECT gameweek_number FROM gameweeks WHERE is_current = TRUE LIMIT 1'
+      );
+      activeGameweek = fallbackGwRes.rows[0]?.gameweek_number || 1;
     }
+
     const currentGw = gwNumber ?? activeGameweek;
 
     const fixturesRes = await query(
@@ -65,29 +86,31 @@ export async function GET(req: NextRequest) {
       JOIN teams ht ON f.home_team_id = ht.id
       JOIN teams at ON f.away_team_id = at.id
       WHERE gw.gameweek_number = $1
+        AND ($2::uuid IS NULL OR gw.competition_id = $2)
       ORDER BY f.kickoff_time ASC
       `,
-      [currentGw]
+      [currentGw, compId || null]
     );
 
     if (fixturesRes.rows.length > 0) {
       return NextResponse.json({
         gameweek: currentGw,
         activeGameweek,
+        competition: comp || { code: compParam, name: compParam === 'ELC' ? 'Championship' : 'Premier League' },
         fixtures: fixturesRes.rows,
         source: 'db',
       });
     }
   } catch (dbErr: any) {
     console.warn(
-      '[API /api/fixtures] DB query failed or empty, falling back to FootballApiClient:',
+      `[API /api/fixtures] DB query failed or empty for ${compParam}, falling back to FootballApiClient:`,
       dbErr.message
     );
   }
 
   // 2. Fallback to FootballApiClient
   try {
-    const res = await footballClient.getFixtures('PL', gwNumber);
+    const res = await footballClient.getFixtures(compParam, gwNumber);
     const fixtures = res.matches;
     const normalizedFixtures = fixtures.map((f) => ({
       id: String(f.id),
@@ -121,6 +144,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       gameweek: gwNumber || activeGw,
       activeGameweek: activeGw,
+      competition: { code: compParam, name: compParam === 'ELC' ? 'Championship' : 'Premier League' },
       fixtures: normalizedFixtures,
       source: 'api',
     });

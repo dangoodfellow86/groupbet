@@ -19,9 +19,10 @@ async function runTests() {
     // Get an upcoming scheduled fixture
     const fixRes = await query(
       `SELECT f.id, f.gameweek_id, f.home_team_id, f.away_team_id, f.kickoff_time, gw.gameweek_number,
-              ht.name AS home_name, at.name AS away_name
+              ht.name AS home_name, at.name AS away_name, c.code AS competition_code
        FROM fixtures f
        JOIN gameweeks gw ON f.gameweek_id = gw.id
+       JOIN competitions c ON gw.competition_id = c.id
        JOIN teams ht ON f.home_team_id = ht.id
        JOIN teams at ON f.away_team_id = at.id
        WHERE f.status = 'SCHEDULED' AND f.kickoff_time > NOW()
@@ -35,6 +36,7 @@ async function runTests() {
     const lmsLeagueRes = await createLeague({
       name: 'LMS Remove Test League',
       type: 'LAST_MAN_STANDING',
+      competitionCode: fixture.competition_code,
       creatorDisplayName: lmsHostName,
       creatorEmail: `lms_remove_${Date.now()}@test.com`,
       startingGameweek: fixture.gameweek_number,
@@ -86,6 +88,7 @@ async function runTests() {
     const predLeagueRes = await createLeague({
       name: 'Predictor Remove Test League',
       type: 'PREDICTOR',
+      competitionCode: fixture.competition_code,
       creatorDisplayName: predHostName,
       creatorEmail: `pred_rem_${Date.now()}@test.com`,
       startingGameweek: fixture.gameweek_number,

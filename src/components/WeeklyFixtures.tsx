@@ -24,6 +24,9 @@ type FixtureItem = FixturesApiResponse['fixtures'][number];
 interface WeeklyFixturesProps {
   initialGameweek?: number;
   gameweek?: number;
+  competitionCode?: string;
+  competitionName?: string;
+  maxGameweeks?: number;
   onGameweekChange?: (gw: number) => void;
   selectedTeamId?: string | null;
   pickedTeamIds?: string[];
@@ -51,6 +54,9 @@ function formatDateGroupHeader(isoString: string): string {
 export function WeeklyFixtures({
   initialGameweek = 1,
   gameweek: controlledGameweek,
+  competitionCode = 'PL',
+  competitionName,
+  maxGameweeks,
   onGameweekChange,
   selectedTeamId,
   pickedTeamIds = [],
@@ -67,19 +73,21 @@ export function WeeklyFixtures({
 }: WeeklyFixturesProps) {
   const [internalGameweek, setInternalGameweek] = useState<number>(initialGameweek);
   const currentGameweek = controlledGameweek ?? internalGameweek;
+  const compCode = competitionCode || 'PL';
+  const totalGameweeks = maxGameweeks ?? (compCode === 'ELC' ? 46 : 38);
 
   const handleGameweekChange = (newGw: number) => {
     setInternalGameweek(newGw);
     onGameweekChange?.(newGw);
   };
 
-  const { data, isLoading, isError, error, refetch, isFetching } = useGameweekFixtures(currentGameweek);
+  const { data, isLoading, isError, error, refetch, isFetching } = useGameweekFixtures(currentGameweek, compCode);
   const [isManualSyncing, setIsManualSyncing] = useState(false);
 
   const handleRefresh = async () => {
     setIsManualSyncing(true);
     try {
-      await fetch(`/api/fixtures?gw=${currentGameweek}&refresh=true`);
+      await fetch(`/api/fixtures?comp=${encodeURIComponent(compCode)}&gw=${currentGameweek}&refresh=true`);
       await refetch();
     } catch (e) {
       console.warn('Manual sync failed:', e);
@@ -120,7 +128,10 @@ export function WeeklyFixtures({
         <div className="flex items-center gap-2 min-w-0">
           <Calendar className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-400 shrink-0" />
           <h2 className="text-base sm:text-lg font-bold text-neutral-100 tracking-tight truncate">
-            <span className="hidden sm:inline">Premier League </span>Fixtures
+            <span className="hidden sm:inline">
+              {competitionName || (compCode === 'ELC' ? 'Championship' : 'Premier League')}{' '}
+            </span>
+            Fixtures
           </h2>
           {liveCount > 0 && (
             <span className="px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-semibold bg-rose-950 text-rose-400 border border-rose-800 animate-pulse shrink-0">
@@ -175,8 +186,8 @@ export function WeeklyFixtures({
 
             <button
               type="button"
-              disabled={currentGameweek >= 38}
-              onClick={() => handleGameweekChange(Math.min(38, currentGameweek + 1))}
+              disabled={currentGameweek >= totalGameweeks}
+              onClick={() => handleGameweekChange(Math.min(totalGameweeks, currentGameweek + 1))}
               className="p-1 sm:p-1.5 rounded-lg hover:bg-neutral-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-neutral-300 cursor-pointer"
               aria-label="Next Gameweek"
             >

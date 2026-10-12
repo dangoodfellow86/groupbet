@@ -1,9 +1,10 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { footballClient } from '@/core/api/football';
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
-    const standingsData = await footballClient.getStandings();
+    const compParam = (req.nextUrl.searchParams.get('comp') || 'PL').toUpperCase();
+    const standingsData = await footballClient.getStandings(compParam);
 
     return NextResponse.json({
       leagueId: standingsData.leagueId,

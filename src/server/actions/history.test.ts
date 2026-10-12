@@ -42,15 +42,19 @@ async function runTests() {
     const friendId = joinRes.user!.id;
 
     // Get upcoming scheduled fixture
-    const fixtureRes = await query(`
+    const fixtureRes = await query(
+      `
       SELECT f.id, f.gameweek_id, f.home_team_id, f.away_team_id, f.kickoff_time, ht.name as home_name, gw.gameweek_number
       FROM fixtures f
       JOIN gameweeks gw ON f.gameweek_id = gw.id
       JOIN teams ht ON f.home_team_id = ht.id
-      WHERE f.status = 'SCHEDULED' AND f.kickoff_time > NOW()
+      WHERE gw.competition_id = (SELECT competition_id FROM leagues WHERE id = $1)
+        AND f.status = 'SCHEDULED' AND f.kickoff_time > NOW()
       ORDER BY f.kickoff_time ASC
       LIMIT 1;
-    `);
+      `,
+      [leagueId]
+    );
     assert.ok(fixtureRes.rows.length > 0, 'Upcoming scheduled fixture should exist');
     const fixture = fixtureRes.rows[0];
     const targetGwId = fixture.gameweek_id;

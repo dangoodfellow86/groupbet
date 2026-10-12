@@ -32,6 +32,7 @@ export interface CreateLeagueInput {
   type: LeagueType;
   creatorDisplayName: string;
   creatorEmail?: string;
+  competitionCode?: string;
   startingGameweek?: number;
   startingLives?: number;
   allowRepeatTeams?: boolean;
@@ -64,10 +65,14 @@ export async function createLeague(input: CreateLeagueInput): Promise<CreateLeag
     const currentUser = await getCurrentUser();
     const user = currentUser || (await getOrCreateUser(input.creatorDisplayName, input.creatorEmail));
 
-    // 2. Fetch active competition (Premier League)
-    const compRes = await query(`SELECT id FROM competitions WHERE code = 'PL' LIMIT 1`);
+    // 2. Fetch active competition (Premier League or EFL Championship)
+    const compCode = (input.competitionCode || 'PL').toUpperCase();
+    const compRes = await query(
+      `SELECT id, name, code FROM competitions WHERE UPPER(code) = $1 LIMIT 1`,
+      [compCode]
+    );
     if (compRes.rows.length === 0) {
-      return { success: false, message: 'Active competition (Premier League) not found in database.' };
+      return { success: false, message: `Active competition (${compCode}) not found in database.` };
     }
     const competitionId = compRes.rows[0].id;
 
@@ -81,7 +86,8 @@ export async function createLeague(input: CreateLeagueInput): Promise<CreateLeag
     let startingGameweek = input.startingGameweek;
     if (!startingGameweek) {
       const activeGwRes = await query<{ gameweek_number: number }>(
-        'SELECT gameweek_number FROM gameweeks WHERE is_current = TRUE LIMIT 1'
+        'SELECT gameweek_number FROM gameweeks WHERE competition_id = $1 AND is_current = TRUE LIMIT 1',
+        [competitionId]
       );
       startingGameweek = activeGwRes.rows[0]?.gameweek_number ?? 1;
     }
@@ -177,6 +183,9 @@ export interface LeaguePreview {
   matches_per_gameweek?: number | 'ALL';
   allow_duplicate_predictions?: boolean;
   exclusive_team_picks?: boolean;
+  competition_id?: string;
+  competition_code?: string;
+  competition_name?: string;
   created_at: string;
 }
 
@@ -197,12 +206,16 @@ export async function getLeagueByInviteCode(
         l.type,
         l.invite_code,
         l.settings,
+        l.competition_id,
+        c.code AS competition_code,
+        c.name AS competition_name,
         l.created_at,
         u.display_name AS creator_name,
         u.avatar_url AS creator_avatar,
         (SELECT COUNT(*)::int FROM league_members WHERE league_id = l.id) AS member_count
       FROM leagues l
       JOIN users u ON l.creator_id = u.id
+      LEFT JOIN competitions c ON l.competition_id = c.id
       WHERE UPPER(l.invite_code) = $1
       `,
       [cleanCode]
@@ -229,6 +242,9 @@ export async function getLeagueByInviteCode(
       matches_per_gameweek: settings.matches_per_gameweek ?? 1,
       allow_duplicate_predictions: settings.allow_duplicate_predictions ?? false,
       exclusive_team_picks: settings.exclusive_team_picks ?? true,
+      competition_id: row.competition_id,
+      competition_code: row.competition_code || 'PL',
+      competition_name: row.competition_name || 'Premier League',
       created_at: row.created_at,
     };
 
@@ -373,6 +389,9 @@ export interface UserLeagueSummary {
   matches_per_gameweek?: number | 'ALL';
   allow_duplicate_predictions?: boolean;
   exclusive_team_picks?: boolean;
+  competition_id?: string;
+  competition_code?: string;
+  competition_name?: string;
   created_at: string;
 }
 
@@ -398,6 +417,9 @@ export async function getUserLeagues(userIdOverride?: string): Promise<UserLeagu
         l.invite_code,
         l.current_round,
         l.settings,
+        l.competition_id,
+        c.code AS competition_code,
+        c.name AS competition_name,
         lm.role,
         l.created_at,
         e.id AS entry_id,
@@ -406,6 +428,7 @@ export async function getUserLeagues(userIdOverride?: string): Promise<UserLeagu
         plb.total_points
       FROM leagues l
       JOIN league_members lm ON l.id = lm.league_id
+      LEFT JOIN competitions c ON l.competition_id = c.id
       LEFT JOIN lms_entries e ON l.id = e.league_id AND e.user_id = $1
       LEFT JOIN predictor_leaderboard plb ON l.id = plb.league_id AND plb.user_id = $1
       WHERE lm.user_id = $1
@@ -431,6 +454,9 @@ export async function getUserLeagues(userIdOverride?: string): Promise<UserLeagu
         matches_per_gameweek: s.matches_per_gameweek ?? 1,
         allow_duplicate_predictions: s.allow_duplicate_predictions ?? false,
         exclusive_team_picks: s.exclusive_team_picks ?? true,
+        competition_id: row.competition_id,
+        competition_code: row.competition_code || 'PL',
+        competition_name: row.competition_name || 'Premier League',
         created_at: row.created_at,
       };
     });
@@ -503,7 +529,8 @@ export async function getLeagueSurvivorBoard(
         f.status AS fixture_status
       FROM lms_entries e
       JOIN users u ON e.user_id = u.id
-      LEFT JOIN gameweeks gw ON gw.gameweek_number = $2
+      JOIN leagues l ON e.league_id = l.id
+      LEFT JOIN gameweeks gw ON gw.gameweek_number = $2 AND gw.competition_id = l.competition_id
       LEFT JOIN lms_picks p ON p.entry_id = e.id AND p.gameweek_id = gw.id
       LEFT JOIN teams t ON p.team_id = t.id
       LEFT JOIN fixtures f ON f.gameweek_id = gw.id AND (f.home_team_id = t.id OR f.away_team_id = t.id)
@@ -521,9 +548,20 @@ export async function getLeagueSurvivorBoard(
     let targetGw = gameweekNumber;
     if (!targetGw) {
       const activeGwRes = await query<{ gameweek_number: number }>(
-        'SELECT gameweek_number FROM gameweeks WHERE is_current = TRUE LIMIT 1'
+        `SELECT gw.gameweek_number 
+         FROM gameweeks gw 
+         JOIN leagues l ON l.competition_id = gw.competition_id 
+         WHERE l.id::text = $1 AND gw.is_current = TRUE 
+         LIMIT 1`,
+        [leagueId]
       );
-      targetGw = activeGwRes.rows[0]?.gameweek_number ?? 1;
+      targetGw = activeGwRes.rows[0]?.gameweek_number;
+      if (!targetGw) {
+        const fallbackRes = await query<{ gameweek_number: number }>(
+          'SELECT gameweek_number FROM gameweeks WHERE is_current = TRUE LIMIT 1'
+        );
+        targetGw = fallbackRes.rows[0]?.gameweek_number ?? 1;
+      }
     }
 
     const res = await query(sql, [leagueId, targetGw]);

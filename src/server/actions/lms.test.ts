@@ -54,9 +54,11 @@ async function runLmsActionTests() {
     `
     SELECT f.id AS fixture_id, f.gameweek_id, f.kickoff_time, gw.gameweek_number,
            ht.id AS home_team_id, ht.name AS home_team_name,
-           at.id AS away_team_id, at.name AS away_team_name
+           at.id AS away_team_id, at.name AS away_team_name,
+           c.code AS competition_code
     FROM fixtures f
     JOIN gameweeks gw ON f.gameweek_id = gw.id
+    JOIN competitions c ON gw.competition_id = c.id
     JOIN teams ht ON f.home_team_id = ht.id
     JOIN teams at ON f.away_team_id = at.id
     WHERE f.status = 'SCHEDULED' AND f.kickoff_time > NOW()
@@ -71,6 +73,7 @@ async function runLmsActionTests() {
   const leagueRes = await createLeague({
     name: `LMS Clash ${timestamp}`,
     type: 'LAST_MAN_STANDING',
+    competitionCode: fix.competition_code,
     creatorDisplayName: hostName,
     creatorEmail: hostEmail,
     startingGameweek: fix.gameweek_number,
@@ -185,6 +188,7 @@ async function runLmsActionTests() {
       JOIN gameweeks gw ON f.gameweek_id = gw.id
       WHERE (f.home_team_id = $1 OR f.away_team_id = $1)
         AND f.gameweek_id != $2
+        AND gw.competition_id = (SELECT competition_id FROM gameweeks WHERE id = $2)
         AND f.kickoff_time > NOW()
       ORDER BY gw.gameweek_number ASC
       LIMIT 1;

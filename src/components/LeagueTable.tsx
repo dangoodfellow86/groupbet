@@ -4,8 +4,16 @@ import React from 'react';
 import { useStandings } from '@/hooks/useFootballData';
 import { Trophy, AlertCircle } from 'lucide-react';
 
-export function LeagueTable() {
-  const { data, isLoading, isError, error } = useStandings();
+interface LeagueTableProps {
+  competitionCode?: string;
+  competitionName?: string;
+}
+
+export function LeagueTable({ competitionCode = 'PL', competitionName }: LeagueTableProps) {
+  const comp = competitionCode || 'PL';
+  const isChampionship = comp === 'ELC';
+  const leagueTitle = competitionName || (isChampionship ? 'Championship' : 'Premier League');
+  const { data, isLoading, isError, error } = useStandings(comp);
   const table = data?.table || [];
 
   return (
@@ -19,7 +27,7 @@ export function LeagueTable() {
           </h2>
         </div>
         <span className="text-xs text-neutral-500 font-medium">
-          {data?.season ? `Premier League ${data.season}` : 'Premier League'}
+          {data?.season ? `${leagueTitle} ${data.season}` : leagueTitle}
         </span>
       </div>
 
@@ -54,9 +62,9 @@ export function LeagueTable() {
             </thead>
             <tbody className="divide-y divide-neutral-800/60">
               {table.map((row) => {
-                const isUcl = row.position <= 4;
-                const isUel = row.position === 5;
-                const isRelegation = row.position >= 18;
+                const isTopTier = isChampionship ? row.position <= 2 : row.position <= 4;
+                const isMidTier = isChampionship ? (row.position >= 3 && row.position <= 6) : row.position === 5;
+                const isRelegation = isChampionship ? row.position >= 22 : row.position >= 18;
 
                 const formArray = row.form ? row.form.replace(/,/g, '').split('').slice(-5) : [];
 
@@ -64,8 +72,8 @@ export function LeagueTable() {
                   <tr
                     key={row.team.id}
                     className={`hover:bg-neutral-800/40 transition-colors ${
-                      isUcl ? 'border-l-2 border-emerald-500 bg-emerald-950/5' : ''
-                    } ${isUel ? 'border-l-2 border-blue-500 bg-blue-950/5' : ''} ${
+                      isTopTier ? 'border-l-2 border-emerald-500 bg-emerald-950/5' : ''
+                    } ${isMidTier ? 'border-l-2 border-blue-500 bg-blue-950/5' : ''} ${
                       isRelegation ? 'border-l-2 border-rose-500 bg-rose-950/5' : ''
                     }`}
                   >
@@ -130,15 +138,15 @@ export function LeagueTable() {
       <div className="p-3 bg-neutral-950/80 border-t border-neutral-800/80 flex flex-wrap items-center gap-4 text-[11px] text-neutral-400">
         <div className="flex items-center gap-1.5">
           <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block" />
-          <span>Champions League (1-4)</span>
+          <span>{isChampionship ? 'Automatic Promotion (1-2)' : 'Champions League (1-4)'}</span>
         </div>
         <div className="flex items-center gap-1.5">
           <span className="w-2.5 h-2.5 rounded-full bg-blue-500 inline-block" />
-          <span>Europa League (5)</span>
+          <span>{isChampionship ? 'Play-Offs (3-6)' : 'Europa League (5)'}</span>
         </div>
         <div className="flex items-center gap-1.5">
           <span className="w-2.5 h-2.5 rounded-full bg-rose-500 inline-block" />
-          <span>Relegation (18-20)</span>
+          <span>{isChampionship ? 'Relegation (22-24)' : 'Relegation (18-20)'}</span>
         </div>
       </div>
     </div>

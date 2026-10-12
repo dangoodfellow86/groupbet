@@ -145,9 +145,11 @@ async function runTests() {
        FROM fixtures f 
        JOIN gameweeks gw ON f.gameweek_id = gw.id 
        JOIN teams t ON f.home_team_id = t.id 
-       WHERE f.status = 'SCHEDULED' AND f.kickoff_time > NOW()
+       WHERE gw.competition_id = (SELECT competition_id FROM leagues WHERE id = $1)
+         AND f.status = 'SCHEDULED' AND f.kickoff_time > NOW()
        ORDER BY f.kickoff_time ASC
-       LIMIT 1`
+       LIMIT 1`,
+      [aioCreateResult.league!.id]
     );
 
     if (gw5TeamRes.rows.length > 0) {
@@ -203,6 +205,44 @@ async function runTests() {
     await query('DELETE FROM leagues WHERE id = $1', [aioCreateResult.league!.id]);
     await query('DELETE FROM users WHERE email IN ($1, $2)', [aioHostEmail, aioFriendEmail]);
     console.log('\n   🧹 Cleaned up test records.');
+
+    // 8. Test EFL Championship League Creation & Competition Scoping
+    console.log('\n8. Testing EFL Championship League Creation & Competition Scoping...');
+    const eflHostName = `EflHost_${Date.now()}`;
+    const eflHostEmail = `eflhost_${Date.now()}@test.com`;
+
+    const eflCreateResult = await createLeague({
+      name: 'Championship Friday Night LMS',
+      type: 'LAST_MAN_STANDING',
+      competitionCode: 'ELC',
+      creatorDisplayName: eflHostName,
+      creatorEmail: eflHostEmail,
+      startingGameweek: 10,
+      startingLives: 2,
+    });
+
+    assert.ok(eflCreateResult.success, `createLeague (ELC) failed: ${eflCreateResult.message}`);
+    assert.ok(eflCreateResult.league?.competition_id, 'League should have a competition_id');
+
+    // Verify preview contains ELC competition metadata
+    const eflPreviewResult = await getLeagueByInviteCode(eflCreateResult.inviteCode!);
+    assert.ok(eflPreviewResult.success);
+    assert.equal(eflPreviewResult.league?.competition_code, 'ELC');
+    assert.equal(eflPreviewResult.league?.competition_name, 'Championship');
+
+    // Verify getUserLeagues contains ELC competition metadata
+    const { getUserLeagues } = await import('./leagues');
+    const eflUserLeagues = await getUserLeagues(eflCreateResult.user!.id);
+    const createdEflLeague = eflUserLeagues.find((l) => l.id === eflCreateResult.league!.id);
+    assert.ok(createdEflLeague, 'Created ELC league should appear in user leagues');
+    assert.equal(createdEflLeague?.competition_code, 'ELC');
+    assert.equal(createdEflLeague?.competition_name, 'Championship');
+    console.log('   ✅ EFL Championship league created and verified with competitionCode=ELC');
+
+    // Clean up ELC test league
+    await query('DELETE FROM leagues WHERE id = $1', [eflCreateResult.league!.id]);
+    await query('DELETE FROM users WHERE email = $1', [eflHostEmail]);
+    console.log('   🧹 Cleaned up ELC test records.');
 
     console.log('\n🎉 ALL LEAGUES & INVITE TESTS PASSED!\n');
   } catch (error) {

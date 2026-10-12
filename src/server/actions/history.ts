@@ -67,7 +67,7 @@ export async function getLeagueHistoryMatrix(
 
     // 1. Fetch League info
     const leagueRes = await query(
-      `SELECT id, name, type, settings FROM leagues WHERE id::text = $1`,
+      `SELECT id, name, type, settings, competition_id FROM leagues WHERE id::text = $1`,
       [leagueId]
     );
 
@@ -153,9 +153,12 @@ export async function getLeagueHistoryMatrix(
     const predictorRes = await query(predictorSql, [leagueId]);
 
     // 5. Determine active / relevant gameweeks dynamically
-    const currentGwRes = await query(
-      `SELECT gameweek_number FROM gameweeks WHERE is_current = true LIMIT 1`
-    );
+    const currentGwRes = league.competition_id
+      ? await query(
+          `SELECT gameweek_number FROM gameweeks WHERE competition_id = $1 AND is_current = true LIMIT 1`,
+          [league.competition_id]
+        )
+      : await query(`SELECT gameweek_number FROM gameweeks WHERE is_current = true LIMIT 1`);
     const baseCurrentGw = currentGwRes.rows.length > 0 ? currentGwRes.rows[0].gameweek_number : 1;
     const pickGws: number[] = [
       ...lmsRes.rows.map((r: any) => r.gameweek_number),
@@ -261,17 +264,27 @@ export async function getUserBurnedTeams(
       userId = user.id;
     }
 
-    // 1. Fetch all Premier League teams participating in active fixtures
+    // 1. Fetch all teams participating in active fixtures for this league's competition
     const teamsRes = await query(`
       SELECT DISTINCT t.id, t.external_id, t.name, t.short_name, t.tla, t.crest_url
       FROM teams t
       WHERE t.id IN (
-        SELECT home_team_id FROM fixtures
+        SELECT f.home_team_id FROM fixtures f
+        JOIN gameweeks gw ON f.gameweek_id = gw.id
+        WHERE gw.competition_id = (
+          SELECT COALESCE(competition_id, (SELECT id FROM competitions WHERE UPPER(code) = 'PL' LIMIT 1))
+          FROM leagues WHERE id::text = $1
+        )
         UNION
-        SELECT away_team_id FROM fixtures
+        SELECT f.away_team_id FROM fixtures f
+        JOIN gameweeks gw ON f.gameweek_id = gw.id
+        WHERE gw.competition_id = (
+          SELECT COALESCE(competition_id, (SELECT id FROM competitions WHERE UPPER(code) = 'PL' LIMIT 1))
+          FROM leagues WHERE id::text = $1
+        )
       )
       ORDER BY t.name ASC;
-    `);
+    `, [leagueId]);
 
     // 2. Fetch user's picks in this league for the active tournament round
     const picksRes = await query(`

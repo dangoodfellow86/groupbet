@@ -30,28 +30,40 @@ function mapApiStatusToMatchStatus(apiStatus: string): MatchStatus {
   return 'SCHEDULED';
 }
 
+export const KNOWN_COMPETITIONS: Record<string, { externalId: number; name: string; code: string }> = {
+  PL: { externalId: 2021, name: 'Premier League', code: 'PL' },
+  ELC: { externalId: 2016, name: 'Championship', code: 'ELC' },
+};
+
 /**
- * Ingests current season Premier League teams, gameweeks, and fixtures into PostgreSQL.
+ * Ingests current season teams, gameweeks, and fixtures for a competition into PostgreSQL.
  * Automatically settles finished matches via settle_fixture() and updates live match scores.
  */
 export async function syncFootballData(competitionCode = 'PL'): Promise<SyncResult> {
-  console.log(`[FootballSync] Ingesting current live season from Football-Data.org for ${competitionCode}...`);
+  const normalizedCompCode = competitionCode.toUpperCase();
+  const compConfig = KNOWN_COMPETITIONS[normalizedCompCode] || {
+    externalId: normalizedCompCode === 'ELC' ? 2016 : 2021,
+    name: normalizedCompCode === 'ELC' ? 'Championship' : 'Premier League',
+    code: normalizedCompCode,
+  };
+
+  console.log(`[FootballSync] Ingesting current live season from Football-Data.org for ${compConfig.name} (${compConfig.code})...`);
 
   // 1. Fetch normalized teams and current season fixtures
   const [teams, fixturesData] = await Promise.all([
-    footballClient.getTeams(competitionCode),
-    footballClient.getFixtures(competitionCode),
+    footballClient.getTeams(compConfig.code),
+    footballClient.getFixtures(compConfig.code),
   ]);
 
   const fixtures = fixturesData.matches;
   const seasonStr = fixturesData.season;
   const currentGameweek = fixturesData.currentMatchday || 1;
 
-  // 2. Upsert Competition (Premier League)
+  // 2. Upsert Competition
   const compUpsert = await query(
     `
     INSERT INTO competitions (external_id, name, code, season)
-    VALUES (2021, 'Premier League', 'PL', $1)
+    VALUES ($1, $2, $3, $4)
     ON CONFLICT (external_id) DO UPDATE SET
       name = EXCLUDED.name,
       code = EXCLUDED.code,
@@ -59,7 +71,7 @@ export async function syncFootballData(competitionCode = 'PL'): Promise<SyncResu
       updated_at = NOW()
     RETURNING id;
     `,
-    [seasonStr]
+    [compConfig.externalId, compConfig.name, compConfig.code, seasonStr]
   );
   const competitionId: string = compUpsert.rows[0].id;
 
