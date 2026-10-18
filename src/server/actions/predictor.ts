@@ -247,6 +247,13 @@ export async function submitPredictorPicks(
   }
 }
 
+export interface MarketPointsBreakdown {
+  exactScore?: number;
+  outcome?: number;
+  btts?: number;
+  overUnder?: number;
+}
+
 export interface UserFixturePrediction {
   fixtureId: string;
   exactScore?: {
@@ -258,6 +265,7 @@ export interface UserFixturePrediction {
   overUnder?: 'OVER' | 'UNDER';
   pointsAwarded: number;
   isSettled: boolean;
+  marketPoints?: MarketPointsBreakdown;
 }
 
 /**
@@ -306,12 +314,18 @@ export async function getUserGameweekPredictions(
           fixtureId: row.fixture_id,
           pointsAwarded: 0,
           isSettled: false,
+          marketPoints: {},
         };
       }
 
-      predictions[key].pointsAwarded += row.points_awarded || 0;
+      const pts = row.points_awarded || 0;
+      predictions[key].pointsAwarded += pts;
       if (row.is_settled) {
         predictions[key].isSettled = true;
+      }
+
+      if (!predictions[key].marketPoints) {
+        predictions[key].marketPoints = {};
       }
 
       if (row.market === 'EXACT_SCORE') {
@@ -319,12 +333,16 @@ export async function getUserGameweekPredictions(
           home: row.predicted_home_score,
           away: row.predicted_away_score,
         };
+        predictions[key].marketPoints!.exactScore = pts;
       } else if (row.market === 'OUTCOME') {
         predictions[key].outcome = row.predicted_outcome as MatchOutcome;
+        predictions[key].marketPoints!.outcome = pts;
       } else if (row.market === 'BTTS') {
         predictions[key].btts = row.predicted_outcome as 'YES' | 'NO';
+        predictions[key].marketPoints!.btts = pts;
       } else if (row.market === 'OVER_UNDER_2_5') {
         predictions[key].overUnder = row.predicted_outcome as 'OVER' | 'UNDER';
+        predictions[key].marketPoints!.overUnder = pts;
       }
 
       // Also map by external_id if available
@@ -418,9 +436,28 @@ export interface ClaimedScore {
   isOwn: boolean;
 }
 
+export interface FixtureMemberPrediction {
+  userId: string;
+  displayName: string;
+  avatarUrl: string | null;
+  isOwn: boolean;
+  exactScore?: { home: number; away: number };
+  outcome?: MatchOutcome;
+  btts?: 'YES' | 'NO';
+  overUnder?: 'OVER' | 'UNDER';
+  pointsAwarded: number;
+  isSettled: boolean;
+  marketPoints: {
+    exactScore: number;
+    outcome: number;
+    btts: number;
+    overUnder: number;
+  };
+}
+
 /**
- * Server Action: Retrieve all claimed scorelines for a fixture in a league.
- * Used by PredictorPickModal to show taken scorelines and enforce exclusive claims.
+ * Server Action: Retrieve all claimed scorelines and full member predictions for a fixture in a league.
+ * Used by PredictorPickModal to show taken scorelines, enforce exclusive claims, and display selection/outcome breakdowns.
  */
 export async function getFixtureClaimedScores(
   leagueId: string,
@@ -429,6 +466,7 @@ export async function getFixtureClaimedScores(
 ): Promise<{
   success: boolean;
   claimedScores: ClaimedScore[];
+  memberPredictions: FixtureMemberPrediction[];
   allowDuplicate: boolean;
   matchesPerGameweek?: number | 'ALL';
   isMatchClaimedByOther: boolean;
@@ -439,6 +477,7 @@ export async function getFixtureClaimedScores(
       return {
         success: true,
         claimedScores: [],
+        memberPredictions: [],
         allowDuplicate: false,
         matchesPerGameweek: 1,
         isMatchClaimedByOther: false,
@@ -456,42 +495,91 @@ export async function getFixtureClaimedScores(
     const res = await query(
       `
       SELECT 
+        pp.market,
         pp.predicted_home_score AS home,
         pp.predicted_away_score AS away,
+        pp.predicted_outcome,
+        pp.points_awarded,
+        pp.is_settled,
         pp.user_id,
-        u.display_name
+        u.display_name,
+        u.avatar_url
       FROM predictor_picks pp
       JOIN users u ON pp.user_id = u.id
       JOIN fixtures f ON pp.fixture_id = f.id
       WHERE pp.league_id::text = $1
-        AND (pp.fixture_id::text = $2 OR f.external_id::text = $2)
-        AND pp.market = 'EXACT_SCORE'
-        AND pp.predicted_home_score IS NOT NULL
-        AND pp.predicted_away_score IS NOT NULL;
+        AND (pp.fixture_id::text = $2 OR f.external_id::text = $2);
       `,
       [leagueId, fixtureId]
     );
 
     let isMatchClaimedByOther = false;
     let claimedByOtherName: string | undefined;
+    const claimedScores: ClaimedScore[] = [];
+    const memberMap = new Map<string, FixtureMemberPrediction>();
 
-    const claimedScores: ClaimedScore[] = res.rows.map((r) => {
+    for (const r of res.rows) {
       const isOwn = Boolean(currentUserId && r.user_id === currentUserId);
       if (!isOwn && !allowDuplicate) {
         isMatchClaimedByOther = true;
         claimedByOtherName = r.display_name;
       }
-      return {
-        home: r.home,
-        away: r.away,
-        claimedBy: r.display_name,
-        isOwn,
-      };
+
+      if (!memberMap.has(r.user_id)) {
+        memberMap.set(r.user_id, {
+          userId: r.user_id,
+          displayName: r.display_name,
+          avatarUrl: r.avatar_url || null,
+          isOwn,
+          pointsAwarded: 0,
+          isSettled: false,
+          marketPoints: {
+            exactScore: 0,
+            outcome: 0,
+            btts: 0,
+            overUnder: 0,
+          },
+        });
+      }
+
+      const memberPred = memberMap.get(r.user_id)!;
+      const pts = r.points_awarded || 0;
+      memberPred.pointsAwarded += pts;
+      if (r.is_settled) {
+        memberPred.isSettled = true;
+      }
+
+      if (r.market === 'EXACT_SCORE' && r.home !== null && r.away !== null) {
+        memberPred.exactScore = { home: r.home, away: r.away };
+        memberPred.marketPoints.exactScore = pts;
+        claimedScores.push({
+          home: r.home,
+          away: r.away,
+          claimedBy: r.display_name,
+          isOwn,
+        });
+      } else if (r.market === 'OUTCOME' && r.predicted_outcome) {
+        memberPred.outcome = r.predicted_outcome as MatchOutcome;
+        memberPred.marketPoints.outcome = pts;
+      } else if (r.market === 'BTTS' && r.predicted_outcome) {
+        memberPred.btts = r.predicted_outcome as 'YES' | 'NO';
+        memberPred.marketPoints.btts = pts;
+      } else if (r.market === 'OVER_UNDER_2_5' && r.predicted_outcome) {
+        memberPred.overUnder = r.predicted_outcome as 'OVER' | 'UNDER';
+        memberPred.marketPoints.overUnder = pts;
+      }
+    }
+
+    const memberPredictions = Array.from(memberMap.values()).sort((a, b) => {
+      if (a.isOwn !== b.isOwn) return a.isOwn ? -1 : 1;
+      if (b.pointsAwarded !== a.pointsAwarded) return b.pointsAwarded - a.pointsAwarded;
+      return a.displayName.localeCompare(b.displayName);
     });
 
     return {
       success: true,
       claimedScores,
+      memberPredictions,
       allowDuplicate,
       matchesPerGameweek,
       isMatchClaimedByOther,
@@ -502,6 +590,7 @@ export async function getFixtureClaimedScores(
     return {
       success: false,
       claimedScores: [],
+      memberPredictions: [],
       allowDuplicate: false,
       matchesPerGameweek: 1,
       isMatchClaimedByOther: false,
@@ -518,11 +607,14 @@ export interface PredictorMatchClaim {
   outcome?: MatchOutcome;
   btts?: 'YES' | 'NO';
   overUnder?: 'OVER' | 'UNDER';
+  pointsAwarded?: number;
+  isSettled?: boolean;
+  pickCount?: number;
 }
 
 /**
  * Server Action: Retrieve all claimed Predictor matches for a gameweek in a league.
- * Used by WeeklyFixtures and FixtureCard to grey out and lock claimed matches.
+ * Used by WeeklyFixtures and FixtureCard to identify picked matches, show claims, and display outcomes.
  */
 export async function getLeagueGameweekPredictorClaims(
   leagueId: string,
@@ -554,7 +646,9 @@ export async function getLeagueGameweekPredictorClaims(
         pp.market,
         pp.predicted_home_score,
         pp.predicted_away_score,
-        pp.predicted_outcome
+        pp.predicted_outcome,
+        pp.points_awarded,
+        pp.is_settled
       FROM predictor_picks pp
       JOIN users u ON pp.user_id = u.id
       JOIN fixtures f ON pp.fixture_id = f.id
@@ -565,29 +659,50 @@ export async function getLeagueGameweekPredictorClaims(
 
     const res = await query(sql, [leagueId, gameweekNumber]);
     const claims: Record<string, PredictorMatchClaim> = {};
+    const fixtureUsersMap = new Map<string, Set<string>>();
 
     for (const row of res.rows) {
       const fixKey = row.fixture_id;
+      if (!fixtureUsersMap.has(fixKey)) {
+        fixtureUsersMap.set(fixKey, new Set());
+      }
+      fixtureUsersMap.get(fixKey)!.add(row.user_id);
+
+      const isRowOwn = Boolean(currentUserId && row.user_id === currentUserId);
+
       if (!claims[fixKey]) {
         claims[fixKey] = {
           fixtureId: row.fixture_id,
           claimedBy: row.display_name,
           userId: row.user_id,
-          isOwn: Boolean(currentUserId && row.user_id === currentUserId),
+          isOwn: isRowOwn,
+          pointsAwarded: 0,
+          isSettled: false,
+          pickCount: 1,
         };
       }
-      if (row.market === 'EXACT_SCORE' && row.predicted_home_score !== null && row.predicted_away_score !== null) {
-        claims[fixKey].exactScore = {
-          home: row.predicted_home_score,
-          away: row.predicted_away_score,
-        };
-      } else if (row.market === 'OUTCOME' && row.predicted_outcome) {
-        claims[fixKey].outcome = row.predicted_outcome as MatchOutcome;
-      } else if (row.market === 'BTTS' && row.predicted_outcome) {
-        claims[fixKey].btts = row.predicted_outcome as 'YES' | 'NO';
-      } else if (row.market === 'OVER_UNDER_2_5' && row.predicted_outcome) {
-        claims[fixKey].overUnder = row.predicted_outcome as 'OVER' | 'UNDER';
+
+      // Only accumulate markets/points for the representative user on this claim entry
+      if (claims[fixKey].userId === row.user_id) {
+        claims[fixKey].pointsAwarded = (claims[fixKey].pointsAwarded || 0) + (row.points_awarded || 0);
+        if (row.is_settled) {
+          claims[fixKey].isSettled = true;
+        }
+        if (row.market === 'EXACT_SCORE' && row.predicted_home_score !== null && row.predicted_away_score !== null) {
+          claims[fixKey].exactScore = {
+            home: row.predicted_home_score,
+            away: row.predicted_away_score,
+          };
+        } else if (row.market === 'OUTCOME' && row.predicted_outcome) {
+          claims[fixKey].outcome = row.predicted_outcome as MatchOutcome;
+        } else if (row.market === 'BTTS' && row.predicted_outcome) {
+          claims[fixKey].btts = row.predicted_outcome as 'YES' | 'NO';
+        } else if (row.market === 'OVER_UNDER_2_5' && row.predicted_outcome) {
+          claims[fixKey].overUnder = row.predicted_outcome as 'OVER' | 'UNDER';
+        }
       }
+
+      claims[fixKey].pickCount = fixtureUsersMap.get(fixKey)!.size;
 
       if (row.fixture_external_id) {
         claims[String(row.fixture_external_id)] = claims[fixKey];

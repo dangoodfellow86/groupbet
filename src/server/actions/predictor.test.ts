@@ -224,6 +224,24 @@ async function runTests() {
     assert.equal(player2Picks.predictions[fixture3.id].exactScore?.away, 0);
     console.log('   ✅ 1-Match limit successfully replaced fixture 2 pick with fixture 3 pick');
 
+    // 10. Test getFixtureClaimedScores memberPredictions & marketPoints breakdown
+    console.log('\n10. Testing getFixtureClaimedScores memberPredictions & marketPoints breakdown...');
+    const fixtureDetailsRes = await import('./predictor').then((m) =>
+      m.getFixtureClaimedScores(leagueId, fixture.id, userId)
+    );
+    assert.ok(fixtureDetailsRes.success, 'getFixtureClaimedScores should succeed');
+    assert.equal(fixtureDetailsRes.memberPredictions.length, 1, 'Should return 1 member prediction for fixture 1');
+    const hostPred = fixtureDetailsRes.memberPredictions[0];
+    assert.equal(hostPred.userId, userId);
+    assert.equal(hostPred.displayName, hostName);
+    assert.equal(hostPred.isOwn, true);
+    assert.deepEqual(hostPred.exactScore, { home: 2, away: 1 });
+    assert.equal(hostPred.outcome, 'HOME');
+    assert.equal(hostPred.btts, 'YES');
+    assert.equal(hostPred.overUnder, 'OVER');
+    assert.ok(hostPred.marketPoints, 'marketPoints breakdown should be present');
+    console.log('   ✅ Member predictions & 4-market selection breakdown verified');
+
     // Clean up
     console.log('\n   🧹 Cleaning up test records...');
     await query('DELETE FROM leagues WHERE id = $1', [leagueId]);

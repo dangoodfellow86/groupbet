@@ -304,18 +304,18 @@ export function FixtureCard({
       {gameMode === 'predictor' && (
         <div className="mt-2.5 pt-2 border-t border-neutral-800/80">
           {userPrediction ? (
-            <div className="w-full flex items-center justify-between text-xs py-1.5 px-2.5 rounded-xl bg-neutral-950/60 border border-amber-500/25 hover:border-amber-500/40 transition">
+            <div className="w-full flex items-center justify-between text-xs py-1.5 px-2.5 rounded-xl bg-neutral-950/70 border border-amber-500/30 hover:border-amber-400/60 transition">
               <button
                 type="button"
-                disabled={!isScheduled}
                 onClick={() => onPredictClick?.(fixture)}
                 className="flex items-center gap-1.5 truncate text-left flex-1 hover:opacity-90 transition cursor-pointer min-w-0"
               >
                 <span className="font-mono font-bold text-amber-400 text-xs shrink-0">
                   🎯 {userPrediction.exactScore?.home} - {userPrediction.exactScore?.away}
                 </span>
-                <span className="text-[10px] text-neutral-400 truncate">
-                  ({userPrediction.outcome} • BTTS: {userPrediction.btts})
+                <span className="text-[10px] text-neutral-300 truncate">
+                  ({userPrediction.outcome} • BTTS: {userPrediction.btts}
+                  {userPrediction.overUnder ? ` • ${userPrediction.overUnder} 2.5` : ''})
                 </span>
               </button>
               {isScheduled ? (
@@ -323,9 +323,9 @@ export function FixtureCard({
                   <button
                     type="button"
                     onClick={() => onPredictClick?.(fixture)}
-                    className="text-[11px] font-semibold text-amber-400/90 underline hover:text-amber-300 transition cursor-pointer"
+                    className="text-[11px] font-semibold text-amber-400 hover:text-amber-300 underline transition cursor-pointer"
                   >
-                    Edit
+                    View / Edit
                   </button>
                   {onRemovePredictorPick && (
                     <button
@@ -338,28 +338,63 @@ export function FixtureCard({
                   )}
                 </div>
               ) : (
-                <span className="text-[10px] font-mono font-bold text-neutral-400 shrink-0 ml-1.5">
-                  {userPrediction.isSettled ? `+${userPrediction.pointsAwarded} pts` : 'Locked'}
-                </span>
+                <button
+                  type="button"
+                  onClick={() => onPredictClick?.(fixture)}
+                  className="flex items-center gap-1.5 shrink-0 ml-2 cursor-pointer group"
+                >
+                  <span
+                    className={`px-2 py-0.5 rounded-md text-[10px] font-mono font-bold border ${
+                      userPrediction.pointsAwarded > 0
+                        ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
+                        : 'bg-neutral-800 text-neutral-300 border-neutral-700'
+                    }`}
+                  >
+                    +{userPrediction.pointsAwarded} pts
+                  </span>
+                  <span className="text-[10px] font-semibold text-amber-400 group-hover:text-amber-300 underline">
+                    Outcome →
+                  </span>
+                </button>
               )}
             </div>
           ) : isPredictorClaimedByOther ? (
-            <div className="w-full flex items-center justify-between text-xs py-1.5 px-2.5 rounded-xl bg-neutral-950/60 border border-amber-900/30 opacity-60 cursor-not-allowed">
-              <div className="flex items-center gap-1.5 truncate">
+            <button
+              type="button"
+              onClick={() => onPredictClick?.(fixture)}
+              className="w-full flex items-center justify-between text-xs py-1.5 px-2.5 rounded-xl bg-neutral-950/70 border border-amber-500/25 hover:border-amber-400/50 hover:bg-neutral-900/90 transition cursor-pointer text-left group"
+            >
+              <div className="flex items-center gap-1.5 truncate min-w-0">
                 <Lock className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                <span className="text-[11px] font-medium text-neutral-300 truncate">
-                  Claimed by <span className="text-amber-400 font-semibold">{predictorClaim?.claimedBy}</span>
+                <span className="text-[11px] font-medium text-neutral-200 truncate">
+                  Picked by <span className="text-amber-400 font-semibold">{predictorClaim?.claimedBy}</span>
+                  {predictorClaim?.pickCount && predictorClaim.pickCount > 1
+                    ? ` +${predictorClaim.pickCount - 1}`
+                    : ''}
                 </span>
                 {predictorClaim?.exactScore && (
-                  <span className="text-[10px] font-mono text-neutral-400 ml-1">
+                  <span className="text-[10px] font-mono font-bold text-amber-300 ml-1 shrink-0">
                     ({predictorClaim.exactScore.home} - {predictorClaim.exactScore.away})
                   </span>
                 )}
               </div>
-              <span className="text-[10px] font-semibold text-amber-400/90 uppercase tracking-wider shrink-0 ml-1.5">
-                Locked
-              </span>
-            </div>
+              <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                {!isScheduled && predictorClaim?.pointsAwarded !== undefined && (
+                  <span
+                    className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-bold border ${
+                      predictorClaim.pointsAwarded > 0
+                        ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
+                        : 'bg-neutral-800 text-neutral-400 border-neutral-700'
+                    }`}
+                  >
+                    +{predictorClaim.pointsAwarded} pts
+                  </span>
+                )}
+                <span className="text-[10px] font-semibold text-amber-400 group-hover:text-amber-300 underline">
+                  {isScheduled ? 'View Pick →' : 'Outcome →'}
+                </span>
+              </div>
+            </button>
           ) : (
             <button
               type="button"

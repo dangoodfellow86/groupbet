@@ -802,6 +802,7 @@ export default function DashboardPage() {
               competitionCode={activeCompCode}
               competitionName={activeCompName}
               maxGameweeks={maxGameweeks}
+              matchesPerGameweek={activeLeague?.matches_per_gameweek ?? 1}
               onGameweekChange={setSelectedGameweek}
               selectedTeamId={activeGameweekPickTeamId}
               pickedTeamIds={burnedTeamIdsForSelectedGw}
@@ -907,6 +908,7 @@ export default function DashboardPage() {
               competitionCode={activeCompCode}
               competitionName={activeCompName}
               maxGameweeks={maxGameweeks}
+              matchesPerGameweek={activeLeague?.matches_per_gameweek ?? 1}
               onGameweekChange={setSelectedGameweek}
               selectedTeamId={activeGameweekPickTeamId}
               pickedTeamIds={burnedTeamIdsForSelectedGw}

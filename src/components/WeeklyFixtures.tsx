@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useGameweekFixtures, FixturesApiResponse } from '@/hooks/useFootballData';
 import { FixtureCard } from './FixtureCard';
 import { CountdownTimer } from './CountdownTimer';
@@ -14,6 +14,9 @@ import {
   History,
   Clock,
   MessageCircle,
+  CheckCircle2,
+  Target,
+  Filter,
 } from 'lucide-react';
 
 import { UserFixturePrediction, PredictorMatchClaim } from '@/server/actions/predictor';
@@ -27,6 +30,7 @@ interface WeeklyFixturesProps {
   competitionCode?: string;
   competitionName?: string;
   maxGameweeks?: number;
+  matchesPerGameweek?: number | 'ALL';
   onGameweekChange?: (gw: number) => void;
   selectedTeamId?: string | null;
   pickedTeamIds?: string[];
@@ -57,6 +61,7 @@ export function WeeklyFixtures({
   competitionCode = 'PL',
   competitionName,
   maxGameweeks,
+  matchesPerGameweek = 1,
   onGameweekChange,
   selectedTeamId,
   pickedTeamIds = [],
@@ -75,6 +80,11 @@ export function WeeklyFixtures({
   const currentGameweek = controlledGameweek ?? internalGameweek;
   const compCode = competitionCode || 'PL';
   const totalGameweeks = maxGameweeks ?? (compCode === 'ELC' ? 46 : 38);
+  const [filterOverride, setFilterOverride] = useState<'picked' | 'all' | null>(null);
+
+  useEffect(() => {
+    setFilterOverride(null);
+  }, [currentGameweek, gameMode, compCode]);
 
   const handleGameweekChange = (newGw: number) => {
     setInternalGameweek(newGw);
@@ -108,18 +118,58 @@ export function WeeklyFixtures({
         )[0]?.kickoff_time
       : null;
 
-  // Group fixtures by formatted date
-  const groupedFixtures = fixtures.reduce<Record<string, FixtureItem[]>>((acc, f) => {
+  const activeGameweek = data?.activeGameweek ?? currentGameweek;
+  const isPastGameweek = currentGameweek < activeGameweek;
+  const isActiveGameweek = currentGameweek === activeGameweek;
+  const isFutureGameweek = currentGameweek > activeGameweek;
+
+  // Predictor selection & league-wide picked matches calculation
+  const isFixturePickedInLeague = (f: FixtureItem) =>
+    Boolean(
+      predictions[f.id] ||
+        predictions[String(f.external_id)] ||
+        (predictorMatchClaims &&
+          (predictorMatchClaims[String(f.id)] || predictorMatchClaims[String(f.external_id)]))
+    );
+
+  const userPickedFixturesCount = fixtures.filter((f) =>
+    Boolean(predictions[f.id] || predictions[String(f.external_id)])
+  ).length;
+
+  const leaguePickedFixtures = fixtures.filter(isFixturePickedInLeague);
+
+  const isGameweekCompleted =
+    isPastGameweek || (fixtures.length > 0 && fixtures.every((f) => f.status === 'FINISHED'));
+
+  const targetQuota =
+    matchesPerGameweek === 'ALL'
+      ? fixtures.length
+      : typeof matchesPerGameweek === 'number' && matchesPerGameweek > 0
+      ? matchesPerGameweek
+      : 1;
+
+  const isUserSelectionsCompleted =
+    fixtures.length > 0 && userPickedFixturesCount >= targetQuota;
+
+  const shouldAutoFilterPicked =
+    gameMode === 'predictor' &&
+    leaguePickedFixtures.length > 0 &&
+    (isUserSelectionsCompleted || isGameweekCompleted);
+
+  const showOnlyPicked =
+    gameMode === 'predictor' &&
+    leaguePickedFixtures.length > 0 &&
+    (filterOverride === 'picked' || (filterOverride === null && shouldAutoFilterPicked));
+
+  const displayedFixtures = showOnlyPicked ? leaguePickedFixtures : fixtures;
+
+  // Group displayed fixtures by formatted date
+  const groupedFixtures = displayedFixtures.reduce<Record<string, FixtureItem[]>>((acc, f) => {
     const header = formatDateGroupHeader(f.kickoff_time);
     if (!acc[header]) acc[header] = [];
     acc[header].push(f);
     return acc;
   }, {});
-
-  const activeGameweek = data?.activeGameweek ?? currentGameweek;
-  const isPastGameweek = currentGameweek < activeGameweek;
-  const isActiveGameweek = currentGameweek === activeGameweek;
-  const isFutureGameweek = currentGameweek > activeGameweek;
 
   return (
     <div className="flex flex-col gap-5">
@@ -218,7 +268,9 @@ export function WeeklyFixtures({
             <div>
               <span className="font-bold text-neutral-200">Gameweek {currentGameweek} Historical Archive</span>
               <p className="text-[11px] text-neutral-500 mt-0.5">
-                All fixtures in this round are finished. Team selections and match points are locked.
+                {gameMode === 'predictor'
+                  ? 'All fixtures in this round are finished. Click any picked match below to view the outcomes and points breakdown.'
+                  : 'All fixtures in this round are finished. Team selections and match points are locked.'}
               </p>
             </div>
           </div>
@@ -229,6 +281,98 @@ export function WeeklyFixtures({
           >
             Return to Active Round (GW {activeGameweek}) →
           </button>
+        </div>
+      )}
+
+      {/* Predictor Selection Progress & Picked Games Filter Bar */}
+      {gameMode === 'predictor' && !isLoading && fixtures.length > 0 && (
+        <div
+          className={`p-3.5 rounded-2xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-all animate-in fade-in duration-200 ${
+            isGameweekCompleted
+              ? 'bg-emerald-950/20 border-emerald-500/30'
+              : isUserSelectionsCompleted
+              ? 'bg-amber-950/20 border-amber-500/30'
+              : 'bg-neutral-900/90 border-neutral-800'
+          }`}
+        >
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div
+              className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 border ${
+                isGameweekCompleted || isUserSelectionsCompleted
+                  ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400'
+                  : 'bg-amber-500/15 border-amber-500/30 text-amber-400'
+              }`}
+            >
+              {isGameweekCompleted || isUserSelectionsCompleted ? (
+                <CheckCircle2 className="w-4 h-4" />
+              ) : (
+                <Target className="w-4 h-4" />
+              )}
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xs font-bold text-neutral-100">
+                  {isGameweekCompleted
+                    ? `Gameweek ${currentGameweek} Outcomes Ready`
+                    : isUserSelectionsCompleted
+                    ? 'All Selections Completed!'
+                    : `Weekly Selections (${userPickedFixturesCount} / ${
+                        matchesPerGameweek === 'ALL' ? fixtures.length : targetQuota
+                      })`}
+                </span>
+                {showOnlyPicked && (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                    Showing Picked Games Only
+                  </span>
+                )}
+              </div>
+              <p className="text-[11px] text-neutral-400 mt-0.5">
+                {isGameweekCompleted
+                  ? leaguePickedFixtures.length > 0
+                    ? `Click on any of the ${leaguePickedFixtures.length} picked ${
+                        leaguePickedFixtures.length === 1 ? 'match' : 'matches'
+                      } to see selections & market outcomes.`
+                    : 'No predictions were submitted for this gameweek.'
+                  : isUserSelectionsCompleted
+                  ? 'Filtering to games picked in your league. Click any match to inspect selections or toggle All Fixtures to change your pick.'
+                  : `Select ${
+                      matchesPerGameweek === 'ALL'
+                        ? 'all fixtures'
+                        : `${targetQuota - userPickedFixturesCount} more ${
+                            targetQuota - userPickedFixturesCount === 1 ? 'match' : 'matches'
+                          }`
+                    } to complete your predictions for GW ${currentGameweek}.`}
+              </p>
+            </div>
+          </div>
+
+          {leaguePickedFixtures.length > 0 && (
+            <div className="flex items-center gap-1 bg-neutral-950 p-1 rounded-xl border border-neutral-800 shrink-0 self-start sm:self-auto">
+              <button
+                type="button"
+                onClick={() => setFilterOverride('picked')}
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                  showOnlyPicked
+                    ? 'bg-amber-500 text-neutral-950 shadow-sm'
+                    : 'text-neutral-400 hover:text-neutral-200'
+                }`}
+              >
+                <Filter className="w-3 h-3" />
+                <span>Picked Games ({leaguePickedFixtures.length})</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setFilterOverride('all')}
+                className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                  !showOnlyPicked
+                    ? 'bg-neutral-800 text-neutral-100 shadow-sm'
+                    : 'text-neutral-400 hover:text-neutral-200'
+                }`}
+              >
+                All Fixtures ({fixtures.length})
+              </button>
+            </div>
+          )}
         </div>
       )}
 
@@ -340,7 +484,7 @@ export function WeeklyFixtures({
             </div>
           ))}
 
-          {fixtures.length === 0 && (
+          {displayedFixtures.length === 0 && (
             <div className="p-8 text-center text-neutral-500 rounded-xl bg-neutral-900/30 border border-neutral-800">
               No fixtures scheduled for Gameweek {currentGameweek}.
             </div>
@@ -350,3 +494,4 @@ export function WeeklyFixtures({
     </div>
   );
 }
+
