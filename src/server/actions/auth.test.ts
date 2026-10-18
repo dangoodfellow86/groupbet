@@ -3,6 +3,11 @@ import { query } from '../db/pool';
 import { syncAuthenticatedUser } from './auth';
 import { createLeague, joinLeague } from './leagues';
 import { submitLmsPick } from './lms';
+import {
+  buildGoogleAuthorizationUrl,
+  generateOAuthState,
+  sanitizeRedirectPath,
+} from '../../lib/google-oauth';
 
 async function runTests() {
   console.log('🧪 Starting Supabase Auth & Multi-Device Sync Tests...\n');
@@ -246,9 +251,39 @@ async function runTests() {
     console.log('   ✅ Custom avatar preserved: Google photo ignored because custom_avatar=true');
 
     // ----------------------------------------------------
-    // 7. CLEANUP
+    // 7. FIRST-PARTY GOOGLE OAUTH URL & CSRF STATE
     // ----------------------------------------------------
-    console.log('\n7. Cleaning up test records...');
+    console.log('\n7. Testing First-Party Google OAuth URL & CSRF state (hiding *.supabase.co)...');
+    const csrfState = generateOAuthState();
+    assert.equal(csrfState.length, 64, 'CSRF state token should be 64 hex chars (32 bytes)');
+
+    const authUrlStr = buildGoogleAuthorizationUrl({
+      clientId: '123456789-test.apps.googleusercontent.com',
+      redirectUri: 'https://www.squadpicks.co.uk/api/auth/google/callback',
+      state: csrfState,
+    });
+    const parsedAuthUrl = new URL(authUrlStr);
+    assert.equal(parsedAuthUrl.origin, 'https://accounts.google.com');
+    assert.equal(
+      parsedAuthUrl.searchParams.get('redirect_uri'),
+      'https://www.squadpicks.co.uk/api/auth/google/callback',
+      'redirect_uri must point to SquadPicks first-party callback and never *.supabase.co'
+    );
+    assert.equal(
+      parsedAuthUrl.searchParams.get('redirect_uri')?.includes('supabase.co'),
+      false,
+      'redirect_uri must not expose supabase.co'
+    );
+    assert.equal(parsedAuthUrl.searchParams.get('state'), csrfState);
+    assert.equal(sanitizeRedirectPath('/join/ABC123'), '/join/ABC123');
+    assert.equal(sanitizeRedirectPath('https://evil.com'), '/');
+    assert.equal(sanitizeRedirectPath('//evil.com'), '/');
+    console.log('   ✅ First-Party Google OAuth URL verified (redirect_uri points to SquadPicks domain, not supabase.co)');
+
+    // ----------------------------------------------------
+    // 8. CLEANUP
+    // ----------------------------------------------------
+    console.log('\n8. Cleaning up test records...');
     await query(`DELETE FROM lms_picks WHERE entry_id = $1`, [guestEntryId]);
     await query(`DELETE FROM lms_entries WHERE league_id = $1`, [leagueId]);
     await query(`DELETE FROM league_members WHERE league_id = $1`, [leagueId]);

@@ -6,7 +6,6 @@ import {
   signUpWithPassword,
   sendMagicLink,
 } from '@/server/actions/auth';
-import { createClient } from '@/lib/supabase/client';
 import {
   X,
   Lock,
@@ -203,7 +202,6 @@ export function AuthModal({
     setIsGooglePending(true);
 
     try {
-      const supabase = createClient();
       const currentPath =
         typeof window !== 'undefined'
           ? `${window.location.pathname}${window.location.search}`
@@ -211,23 +209,11 @@ export function AuthModal({
       // Clean any existing auth_error parameter from the path
       const cleanPath =
         currentPath.replace(/([?&])auth_error=[^&]*(&|$)/, '$1').replace(/[?&]$/, '') || '/';
-      const redirectUrl = `${window.location.origin}/api/auth/callback?next=${encodeURIComponent(cleanPath)}`;
 
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: redirectUrl,
-          queryParams: {
-            access_type: 'offline',
-            prompt: 'select_account',
-          },
-        },
-      });
-
-      if (error) {
-        setErrorMessage(error.message || 'Failed to initialize Google Sign-In.');
-        setIsGooglePending(false);
-      }
+      // Route through our first-party /api/auth/google endpoint so the Google
+      // OAuth screen displays our domain / SquadPicks branding instead of *.supabase.co.
+      // Automatically falls back to standard Supabase OAuth if GOOGLE_CLIENT_ID is not yet set.
+      window.location.assign(`/api/auth/google?next=${encodeURIComponent(cleanPath)}`);
     } catch (err: any) {
       console.error('[AuthModal] Google Sign-In error:', err);
       setErrorMessage(err?.message || 'Google sign-in could not be completed.');
