@@ -24,7 +24,8 @@
     "test:profile": "tsx --env-file=.env src/server/actions/profile.test.ts",
     "test:commissioner": "tsx --env-file=.env src/server/actions/commissioner.test.ts",
     "test:rls": "tsx --env-file=.env src/server/actions/rls.test.ts",
-    "test": "npm run test:engine && npm run test:api && npm run test:webhook && npm run test:lms && npm run test:leagues && npm run test:predictor && npm run test:db && npm run test:simulator && npm run test:remove-picks && npm run test:auth && npm run test:realtime && npm run test:history && npm run test:sharing && npm run test:profile && npm run test:commissioner && npm run test:rls"
+    "test:feedback": "tsx --env-file=.env src/server/actions/feedback.test.ts",
+    "test": "npm run test:engine && npm run test:api && npm run test:webhook && npm run test:lms && npm run test:leagues && npm run test:predictor && npm run test:db && npm run test:simulator && npm run test:remove-picks && npm run test:auth && npm run test:realtime && npm run test:history && npm run test:sharing && npm run test:profile && npm run test:commissioner && npm run test:rls && npm run test:feedback"
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",

@@ -3,11 +3,12 @@
 import React from 'react';
 import Link from 'next/link';
 import { SquadPicksLogo } from '@/components/SquadPicksLogo';
-import { ShieldCheck, Mail, Heart, ExternalLink } from 'lucide-react';
+import { ShieldCheck, Mail, MessageSquarePlus } from 'lucide-react';
 
 export interface SiteFooterProps {
   onOpenLegal?: (tab: 'terms' | 'privacy') => void;
   onOpenRules?: (tab?: 'lms' | 'predictor' | 'navigation') => void;
+  onOpenFeedback?: () => void;
   className?: string;
   hideTopBorder?: boolean;
 }
@@ -15,6 +16,7 @@ export interface SiteFooterProps {
 export function SiteFooter({
   onOpenLegal,
   onOpenRules,
+  onOpenFeedback,
   className = '',
   hideTopBorder = false,
 }: SiteFooterProps) {
@@ -58,6 +60,19 @@ export function SiteFooter({
                   className="text-neutral-400 hover:text-emerald-400 transition cursor-pointer"
                 >
                   How to Play
+                </button>
+                <span className="text-neutral-700">•</span>
+              </>
+            )}
+            {onOpenFeedback && (
+              <>
+                <button
+                  type="button"
+                  onClick={onOpenFeedback}
+                  className="inline-flex items-center gap-1.5 text-emerald-400 hover:text-emerald-300 font-semibold transition cursor-pointer"
+                >
+                  <MessageSquarePlus className="w-3.5 h-3.5" />
+                  <span>Share Feedback</span>
                 </button>
                 <span className="text-neutral-700">•</span>
               </>

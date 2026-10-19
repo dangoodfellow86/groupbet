@@ -14,6 +14,7 @@ const EXPECTED_PUBLIC_TABLES = [
   'predictor_picks',
   'predictor_leaderboard',
   'schema_migrations',
+  'user_feedback',
 ];
 
 const ADMIN_FUNCTIONS = [

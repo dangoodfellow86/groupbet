@@ -24,6 +24,7 @@ import { SiteFooter } from '@/components/SiteFooter';
 import { LegalModal } from '@/components/LegalModal';
 import { RulesModal, RulesTab } from '@/components/rules/RulesModal';
 import { OnboardingModal, hasSeenOnboarding } from '@/components/onboarding/OnboardingModal';
+import { FeedbackModal } from '@/components/FeedbackModal';
 import { StandingsShareItem } from '@/lib/sharing';
 import { useUserSession } from '@/hooks/useUserSession';
 import { useMatchdayRealtime } from '@/hooks/useMatchdayRealtime';
@@ -131,6 +132,7 @@ export default function DashboardPage() {
   const [isRulesModalOpen, setIsRulesModalOpen] = useState(false);
   const [rulesModalTab, setRulesModalTab] = useState<RulesTab>('lms');
   const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
+  const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -563,6 +565,7 @@ export default function DashboardPage() {
                 setRulesModalTab(tab);
                 setIsRulesModalOpen(true);
               }}
+              onOpenFeedback={() => setIsFeedbackModalOpen(true)}
               onUserLoggedOut={() => {
                 refetchSession();
                 queryClient.invalidateQueries({ queryKey: ['user-session'] });
@@ -1312,6 +1315,17 @@ export default function DashboardPage() {
         }}
       />
 
+      {/* Player Feedback & Support Modal */}
+      <FeedbackModal
+        isOpen={isFeedbackModalOpen}
+        onClose={() => setIsFeedbackModalOpen(false)}
+        defaultDisplayName={user?.display_name}
+        defaultEmail={user?.email}
+        userId={user?.id}
+        activeLeagueId={activeLeague?.id}
+        activeLeagueName={activeLeague?.name}
+      />
+
       {/* Persistent Site Footer */}
       <SiteFooter
         onOpenLegal={(tab) => {
@@ -1322,6 +1336,7 @@ export default function DashboardPage() {
           setRulesModalTab(tab);
           setIsRulesModalOpen(true);
         }}
+        onOpenFeedback={() => setIsFeedbackModalOpen(true)}
       />
     </div>
   );

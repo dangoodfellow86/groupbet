@@ -17,6 +17,7 @@ import {
   Scale,
   FileText,
   BookOpen,
+  MessageSquarePlus,
 } from 'lucide-react';
 
 interface UserProfileMenuProps {
@@ -26,6 +27,7 @@ interface UserProfileMenuProps {
   onOpenProfile?: (tab?: 'overview' | 'trophies' | 'tournaments' | 'edit') => void;
   onOpenLegal?: (tab: 'terms' | 'privacy') => void;
   onOpenRules?: (tab?: 'lms' | 'predictor' | 'navigation') => void;
+  onOpenFeedback?: () => void;
   onUserLoggedOut?: () => void;
 }
 
@@ -36,6 +38,7 @@ export function UserProfileMenu({
   onOpenProfile,
   onOpenLegal,
   onOpenRules,
+  onOpenFeedback,
   onUserLoggedOut,
 }: UserProfileMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
@@ -73,6 +76,17 @@ export function UserProfileMenu({
   if (!user) {
     return (
       <div className="flex items-center gap-2 pl-2 border-l border-neutral-800">
+        {onOpenFeedback && (
+          <button
+            type="button"
+            onClick={onOpenFeedback}
+            className="flex items-center gap-1.5 p-1.5 sm:px-2.5 sm:py-1.5 rounded-xl bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 text-neutral-300 text-xs font-semibold transition cursor-pointer"
+            title="Share Feedback & Support"
+          >
+            <MessageSquarePlus className="w-3.5 h-3.5 text-emerald-400" />
+            <span className="hidden md:inline">Feedback</span>
+          </button>
+        )}
         <button
           type="button"
           onClick={() => onOpenAuth('signin')}
@@ -209,6 +223,20 @@ export function UserProfileMenu({
               >
                 <BookOpen className="w-3.5 h-3.5 text-emerald-400" />
                 <span>How to Play &amp; Rules</span>
+              </button>
+            )}
+
+            {onOpenFeedback && (
+              <button
+                type="button"
+                onClick={() => {
+                  setIsOpen(false);
+                  onOpenFeedback();
+                }}
+                className="w-full px-3 py-2 rounded-lg text-xs text-neutral-300 hover:text-neutral-100 hover:bg-neutral-800 transition flex items-center gap-2 text-left cursor-pointer"
+              >
+                <MessageSquarePlus className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Share Feedback &amp; Support</span>
               </button>
             )}
 
