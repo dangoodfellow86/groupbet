@@ -27,6 +27,7 @@ export interface SubmitFeedbackResponse {
   message: string;
   feedbackId?: string;
   emailForwarded?: boolean;
+  dartTaskCreated?: boolean;
 }
 
 const VALID_CATEGORIES = new Set<string>(FEEDBACK_CATEGORIES.map((c) => c.id));
@@ -117,6 +118,91 @@ async function forwardFeedbackToSupportEmail(params: {
     return true;
   } catch (err) {
     console.warn('[submitUserFeedback] Failed to forward email via Resend:', err);
+    return false;
+  }
+}
+
+async function forwardFeedbackToDart(params: {
+  feedbackId: string;
+  category: FeedbackCategory;
+  message: string;
+  rating?: number | null;
+  displayName: string;
+  contactEmail: string;
+  leagueName?: string | null;
+  pageUrl?: string | null;
+}): Promise<boolean> {
+  const dartToken = process.env.DART_TOKEN?.trim();
+  if (!dartToken) {
+    return false;
+  }
+
+  const dartboard = process.env.DART_DARTBOARD?.trim() || 'General/SquadPicks';
+  const categoryLabel = getFeedbackCategoryLabel(params.category);
+  const shortSnippet = params.message.replace(/\s+/g, ' ').slice(0, 72);
+  const title = `[${categoryLabel}] ${params.displayName || 'Player'}: ${shortSnippet}${
+    params.message.length > 72 ? '…' : ''
+  }`;
+
+  const starsDisplay = params.rating
+    ? `${'★'.repeat(params.rating)}${'☆'.repeat(5 - params.rating)} (${params.rating}/5)`
+    : 'Not rated';
+
+  const tags: string[] =
+    params.category === 'BUG_REPORT'
+      ? ['Bug', 'Product']
+      : params.category === 'FEATURE_REQUEST'
+      ? ['Feature', 'Product']
+      : ['Product'];
+
+  const priority =
+    params.category === 'BUG_REPORT'
+      ? 'High'
+      : params.category === 'FEATURE_REQUEST'
+      ? 'Medium'
+      : 'Low';
+
+  const descriptionLines = [
+    `### Player Feedback (${categoryLabel})`,
+    `- **Reference ID:** \`${params.feedbackId}\``,
+    `- **Player:** ${params.displayName || 'Anonymous'}`,
+    `- **Contact Email:** ${params.contactEmail || 'Not provided'}`,
+    `- **Experience Rating:** ${starsDisplay}`,
+    params.leagueName ? `- **Active League:** ${params.leagueName}` : null,
+    params.pageUrl ? `- **Page URL:** ${params.pageUrl}` : null,
+    '',
+    '### Message',
+    params.message,
+  ].filter((line): line is string => line !== null);
+
+  try {
+    const res = await fetch('https://app.dartai.com/api/v0/public/tasks', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${dartToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        item: {
+          title,
+          description: descriptionLines.join('\n'),
+          dartboard,
+          status: 'To-do',
+          priority,
+          tags,
+        },
+      }),
+    });
+
+    if (!res.ok) {
+      const errBody = await res.text().catch(() => '');
+      console.warn('[submitUserFeedback] Dart API non-200 response:', res.status, errBody);
+      return false;
+    }
+
+    return true;
+  } catch (err) {
+    console.warn('[submitUserFeedback] Failed to create task in Dart:', err);
     return false;
   }
 }
@@ -238,19 +324,24 @@ export async function submitUserFeedback(
 
     const feedbackId = insertRes.rows[0]?.id;
 
-    // Attempt email forwarding to support@squadpicks.co.uk if RESEND_API_KEY is configured
-    const emailForwarded = input.skipEmailForwarding
-      ? false
-      : await forwardFeedbackToSupportEmail({
-          feedbackId: feedbackId || 'unknown',
-          category,
-          message: trimmedMessage,
-          rating,
-          displayName: resolvedDisplayName || 'Anonymous Player',
-          contactEmail: resolvedEmail,
-          leagueName: input.leagueName,
-          pageUrl: input.pageUrl,
-        });
+    const forwardParams = {
+      feedbackId: feedbackId || 'unknown',
+      category,
+      message: trimmedMessage,
+      rating,
+      displayName: resolvedDisplayName || 'Anonymous Player',
+      contactEmail: resolvedEmail,
+      leagueName: input.leagueName,
+      pageUrl: input.pageUrl,
+    };
+
+    // Attempt email forwarding (Resend) and Dart task creation in parallel
+    const [emailForwarded, dartTaskCreated] = input.skipEmailForwarding
+      ? [false, false]
+      : await Promise.all([
+          forwardFeedbackToSupportEmail(forwardParams),
+          forwardFeedbackToDart(forwardParams),
+        ]);
 
     return {
       success: true,
@@ -258,6 +349,7 @@ export async function submitUserFeedback(
         'Thank you! Your feedback has been logged with the SquadPicks team.',
       feedbackId,
       emailForwarded,
+      dartTaskCreated,
     };
   } catch (err: any) {
     console.error('[submitUserFeedback] Error saving feedback:', err);
