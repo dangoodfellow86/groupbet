@@ -68,7 +68,11 @@ export function LeagueSwitcher({
                     ? 'bg-amber-500/15 text-amber-300 border-amber-500/30'
                     : 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
                 }`}>
-                  {activeLeague.competition_code === 'ELC' ? 'EFL' : 'PL'}
+                  {activeLeague.competition_code === 'BOTH'
+                    ? 'PL+EFL'
+                    : activeLeague.competition_code === 'ELC'
+                    ? 'EFL'
+                    : 'PL'}
                 </span>
               </div>
             )}
@@ -128,7 +132,11 @@ export function LeagueSwitcher({
                               ? 'bg-amber-500/15 text-amber-300 border-amber-500/30'
                               : 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
                           }`}>
-                            {league.competition_code === 'ELC' ? 'EFL' : 'PL'}
+                            {league.competition_code === 'BOTH'
+                              ? 'PL+EFL'
+                              : league.competition_code === 'ELC'
+                              ? 'EFL'
+                              : 'PL'}
                           </span>
                         </div>
                         <div className="text-[10px] text-neutral-400 flex items-center gap-1.5">

@@ -244,6 +244,51 @@ async function runTests() {
     await query('DELETE FROM users WHERE email = $1', [eflHostEmail]);
     console.log('   🧹 Cleaned up ELC test records.');
 
+    // 9. Test Combined (PL + Championship / BOTH) League Creation & Paired Round Resolution
+    console.log('\n9. Testing Combined (BOTH: Premier League + Championship) League Creation...');
+    const bothHostName = `BothHost_${Date.now()}`;
+    const bothHostEmail = `bothhost_${Date.now()}@test.com`;
+
+    const bothCreateResult = await createLeague({
+      name: 'Prem + Championship Combined Clash',
+      type: 'ALL_IN_ONE',
+      competitionCode: 'BOTH',
+      creatorDisplayName: bothHostName,
+      creatorEmail: bothHostEmail,
+      startingGameweek: 8,
+      startingLives: 2,
+    });
+
+    assert.ok(bothCreateResult.success, `createLeague (BOTH) failed: ${bothCreateResult.message}`);
+    assert.ok(bothCreateResult.league?.competition_id, 'Combined league should have primary competition_id');
+
+    const bothPreview = await getLeagueByInviteCode(bothCreateResult.inviteCode!);
+    assert.ok(bothPreview.success);
+    assert.equal(bothPreview.league?.competition_code, 'BOTH');
+    assert.equal(bothPreview.league?.competition_name, 'Premier League + Championship');
+
+    const bothUserLeagues = await getUserLeagues(bothCreateResult.user!.id);
+    const createdBothLeague = bothUserLeagues.find((l) => l.id === bothCreateResult.league!.id);
+    assert.ok(createdBothLeague, 'Created BOTH league should appear in user leagues');
+    assert.equal(createdBothLeague?.competition_code, 'BOTH');
+    assert.equal(createdBothLeague?.competition_name, 'Premier League + Championship');
+
+    const { resolveLeagueRoundGameweeks } = await import('../services/gameweek-resolver');
+    const roundGws = await resolveLeagueRoundGameweeks(bothCreateResult.league!.id, 8);
+    assert.equal(roundGws.isCombined, true, 'resolveLeagueRoundGameweeks should detect combined league');
+    assert.equal(roundGws.gameweekIds.length, 2, 'Should resolve paired PL + ELC gameweek IDs');
+
+    const { getUserBurnedTeams } = await import('./history');
+    const burnedTeamsRes = await getUserBurnedTeams(bothCreateResult.league!.id, bothCreateResult.user!.id);
+    assert.ok(burnedTeamsRes.success);
+    assert.equal(burnedTeamsRes.teams.length, 44, 'Combined league should have 44 available clubs (20 PL + 24 ELC)');
+    console.log('   ✅ Combined (BOTH) league verified: 44 clubs, paired PL+ELC gameweek IDs, and competitionCode=BOTH');
+
+    // Clean up BOTH test league
+    await query('DELETE FROM leagues WHERE id = $1', [bothCreateResult.league!.id]);
+    await query('DELETE FROM users WHERE email = $1', [bothHostEmail]);
+    console.log('   🧹 Cleaned up BOTH test records.');
+
     console.log('\n🎉 ALL LEAGUES & INVITE TESTS PASSED!\n');
   } catch (error) {
     console.error('❌ Test failed:', error);

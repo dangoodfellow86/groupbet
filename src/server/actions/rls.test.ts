@@ -23,6 +23,7 @@ const ADMIN_FUNCTIONS = [
   'set_fixture_live(uuid, integer, integer)',
   'revert_fixture(uuid)',
   'revert_gameweek(integer)',
+  'sync_gameweek_completion(uuid)',
 ];
 
 async function runTests() {

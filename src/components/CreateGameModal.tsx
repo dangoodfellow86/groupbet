@@ -23,7 +23,7 @@ export function CreateGameModal({
   activeGameweek = 6,
   onGameCreated,
 }: CreateGameModalProps) {
-  const [competitionCode, setCompetitionCode] = useState<'PL' | 'ELC'>('PL');
+  const [competitionCode, setCompetitionCode] = useState<'PL' | 'ELC' | 'BOTH'>('PL');
   const [name, setName] = useState('');
   const [type, setType] = useState<LeagueType>('ALL_IN_ONE');
   const [startingGameweek, setStartingGameweek] = useState(activeGameweek);
@@ -163,6 +163,36 @@ export function CreateGameModal({
                 </div>
               </button>
             </div>
+
+            <button
+              type="button"
+              onClick={() => setCompetitionCode('BOTH')}
+              className={`p-3 rounded-2xl border text-left flex items-center justify-between gap-2.5 transition ${
+                competitionCode === 'BOTH'
+                  ? 'bg-gradient-to-r from-emerald-500/15 to-amber-500/15 border-emerald-500/60 text-neutral-100 shadow-md ring-1 ring-emerald-500/40'
+                  : 'bg-neutral-950/70 border-neutral-800 text-neutral-400 hover:border-neutral-700'
+              }`}
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="text-lg shrink-0">🦁🏆</div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-xs text-neutral-100 truncate">
+                      Both: Prem + Championship
+                    </span>
+                    <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+                      44 Clubs
+                    </span>
+                  </div>
+                  <div className="text-[10px] text-neutral-400 mt-0.5">
+                    Pick from Premier League &amp; Championship every round
+                  </div>
+                </div>
+              </div>
+              {competitionCode === 'BOTH' && (
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 shrink-0" />
+              )}
+            </button>
           </div>
 
           {/* Game Type Selector */}
@@ -392,7 +422,7 @@ export function CreateGameModal({
             </div>
           ) : (
             <div className="p-3 rounded-xl bg-neutral-950/70 border border-neutral-800/80 text-xs text-neutral-400">
-              Starts at <strong className="text-neutral-200">Gameweek {startingGameweek}</strong> ({competitionCode === 'ELC' ? 'Championship' : 'Premier League'}). Points awarded for Exact Score (+3), Match Outcome (+1), BTTS (+1), and Over/Under (+1).
+              Starts at <strong className="text-neutral-200">Gameweek {startingGameweek}</strong> ({competitionCode === 'BOTH' ? 'Premier League + Championship' : competitionCode === 'ELC' ? 'Championship' : 'Premier League'}). Points awarded for Exact Score (+3), Match Outcome (+1), BTTS (+1), and Over/Under (+1).
             </div>
           )}
 
@@ -426,9 +456,11 @@ export function CreateGameModal({
                         : 'bg-neutral-950 border-neutral-800 text-neutral-400 hover:border-neutral-700'
                     }`}
                   >
-                    <span className="font-bold">All {competitionCode === 'ELC' ? 12 : 10} Matches</span>
+                    <span className="font-bold">
+                      All {competitionCode === 'BOTH' ? 22 : competitionCode === 'ELC' ? 12 : 10} Matches
+                    </span>
                     <span className="text-[10px] text-neutral-500 font-normal">
-                      Predict {competitionCode === 'ELC' ? 'all 12 fixtures' : 'every fixture'}
+                      Predict {competitionCode === 'BOTH' ? 'all PL + ELC fixtures' : competitionCode === 'ELC' ? 'all 12 fixtures' : 'every fixture'}
                     </span>
                   </button>
                 </div>

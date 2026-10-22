@@ -2,6 +2,11 @@
 
 import { query } from '@/server/db/pool';
 import { getCurrentUser } from '@/server/auth/session';
+import {
+  isCombinedCompetitions,
+  resolveActiveGameweek,
+  resolvePairedGameweeks,
+} from '@/server/services/gameweek-resolver';
 
 export interface HistoryGameweekPick {
   gameweekNumber: number;
@@ -117,10 +122,25 @@ export async function getLeagueHistoryMatrix(
     const playerRes = await query(playerSql, [leagueId]);
 
     // 3. Fetch LMS Picks
+    const isCombined = isCombinedCompetitions(settings);
+    let elcGwOffset = 0;
+    if (isCombined) {
+      const paired = await resolvePairedGameweeks(undefined, false);
+      elcGwOffset = paired.elcGwNumber - paired.plGwNumber;
+    }
+
+    const mapRoundGw = (gwNum: number, compCode?: string): number => {
+      if (isCombined && String(compCode || '').toUpperCase() === 'ELC') {
+        return Math.max(1, gwNum - elcGwOffset);
+      }
+      return gwNum;
+    };
+
     const lmsSql = `
       SELECT 
         e.user_id,
         gw.gameweek_number,
+        c.code AS comp_code,
         p.result,
         t.id AS team_id,
         t.name AS team_name,
@@ -132,6 +152,7 @@ export async function getLeagueHistoryMatrix(
       FROM lms_picks p
       JOIN lms_entries e ON p.entry_id = e.id
       JOIN gameweeks gw ON p.gameweek_id = gw.id
+      LEFT JOIN competitions c ON gw.competition_id = c.id
       JOIN teams t ON p.team_id = t.id
       LEFT JOIN fixtures f ON f.gameweek_id = gw.id AND (f.home_team_id = t.id OR f.away_team_id = t.id)
       WHERE e.league_id::text = $1
@@ -143,26 +164,25 @@ export async function getLeagueHistoryMatrix(
       SELECT 
         p.user_id,
         gw.gameweek_number,
+        c.code AS comp_code,
         SUM(COALESCE(p.points_awarded, 0))::int AS gameweek_points
       FROM predictor_picks p
       JOIN fixtures f ON p.fixture_id = f.id
       JOIN gameweeks gw ON f.gameweek_id = gw.id
+      LEFT JOIN competitions c ON gw.competition_id = c.id
       WHERE p.league_id::text = $1
-      GROUP BY p.user_id, gw.gameweek_number
+      GROUP BY p.user_id, gw.gameweek_number, c.code
     `;
     const predictorRes = await query(predictorSql, [leagueId]);
 
     // 5. Determine active / relevant gameweeks dynamically
-    const currentGwRes = league.competition_id
-      ? await query(
-          `SELECT gameweek_number FROM gameweeks WHERE competition_id = $1 AND is_current = true LIMIT 1`,
-          [league.competition_id]
-        )
-      : await query(`SELECT gameweek_number FROM gameweeks WHERE is_current = true LIMIT 1`);
-    const baseCurrentGw = currentGwRes.rows.length > 0 ? currentGwRes.rows[0].gameweek_number : 1;
+    const baseCurrentGw = await resolveActiveGameweek({
+      competitionId: league.competition_id || null,
+      allowOverdueAutoSync: false,
+    });
     const pickGws: number[] = [
-      ...lmsRes.rows.map((r: any) => r.gameweek_number),
-      ...predictorRes.rows.map((r: any) => r.gameweek_number),
+      ...lmsRes.rows.map((r: any) => mapRoundGw(r.gameweek_number, r.comp_code)),
+      ...predictorRes.rows.map((r: any) => mapRoundGw(r.gameweek_number, r.comp_code)),
     ];
     const currentGameweek = Math.max(baseCurrentGw, ...pickGws, 1);
     const gameweeks = Array.from({ length: currentGameweek }, (_, i) => i + 1);
@@ -170,7 +190,9 @@ export async function getLeagueHistoryMatrix(
     // Build index of predictor points: Record<`${userId}_${gw}`, points>
     const predictorPointsIndex: Record<string, number> = {};
     for (const row of predictorRes.rows) {
-      predictorPointsIndex[`${row.user_id}_${row.gameweek_number}`] = row.gameweek_points;
+      const mappedGw = mapRoundGw(row.gameweek_number, row.comp_code);
+      const key = `${row.user_id}_${mappedGw}`;
+      predictorPointsIndex[key] = (predictorPointsIndex[key] || 0) + row.gameweek_points;
     }
 
     // Build index of LMS picks: Record<`${userId}_${gw}`, pickData>
@@ -178,6 +200,7 @@ export async function getLeagueHistoryMatrix(
     const now = Date.now();
 
     for (const row of lmsRes.rows) {
+      const mappedGw = mapRoundGw(row.gameweek_number, row.comp_code);
       const isOwn = Boolean(currentUserId && row.user_id === currentUserId);
       const isKickoffPassed = row.kickoff_time
         ? new Date(row.kickoff_time).getTime() <= now
@@ -185,7 +208,7 @@ export async function getLeagueHistoryMatrix(
       const isLiveOrFinished = ['LIVE', 'IN_PLAY', 'PAUSED', 'FINISHED'].includes(row.fixture_status);
       const isVisible = isOwn || isKickoffPassed || isLiveOrFinished || isExclusive;
 
-      lmsPicksIndex[`${row.user_id}_${row.gameweek_number}`] = {
+      lmsPicksIndex[`${row.user_id}_${mappedGw}`] = {
         teamId: isVisible ? row.team_id : undefined,
         teamName: isVisible ? row.team_name : 'Pick Locked',
         teamTla: isVisible ? row.team_tla : 'LCK',
@@ -264,27 +287,51 @@ export async function getUserBurnedTeams(
       userId = user.id;
     }
 
-    // 1. Fetch all teams participating in active fixtures for this league's competition
-    const teamsRes = await query(`
-      SELECT DISTINCT t.id, t.external_id, t.name, t.short_name, t.tla, t.crest_url
-      FROM teams t
-      WHERE t.id IN (
-        SELECT f.home_team_id FROM fixtures f
-        JOIN gameweeks gw ON f.gameweek_id = gw.id
-        WHERE gw.competition_id = (
-          SELECT COALESCE(competition_id, (SELECT id FROM competitions WHERE UPPER(code) = 'PL' LIMIT 1))
-          FROM leagues WHERE id::text = $1
-        )
-        UNION
-        SELECT f.away_team_id FROM fixtures f
-        JOIN gameweeks gw ON f.gameweek_id = gw.id
-        WHERE gw.competition_id = (
-          SELECT COALESCE(competition_id, (SELECT id FROM competitions WHERE UPPER(code) = 'PL' LIMIT 1))
-          FROM leagues WHERE id::text = $1
-        )
-      )
-      ORDER BY t.name ASC;
-    `, [leagueId]);
+    // 1. Check if this league combines PL + Championship
+    const leagueMetaRes = await query(
+      `SELECT settings FROM leagues WHERE id::text = $1 LIMIT 1`,
+      [leagueId]
+    );
+    const isCombined = isCombinedCompetitions(leagueMetaRes.rows[0]?.settings);
+
+    // 2. Fetch all teams participating in active fixtures for this league's competition(s)
+    const teamsRes = isCombined
+      ? await query(`
+          SELECT DISTINCT t.id, t.external_id, t.name, t.short_name, t.tla, t.crest_url
+          FROM teams t
+          WHERE t.id IN (
+            SELECT f.home_team_id FROM fixtures f
+            JOIN gameweeks gw ON f.gameweek_id = gw.id
+            JOIN competitions c ON gw.competition_id = c.id
+            WHERE UPPER(c.code) IN ('PL', 'ELC')
+            UNION
+            SELECT f.away_team_id FROM fixtures f
+            JOIN gameweeks gw ON f.gameweek_id = gw.id
+            JOIN competitions c ON gw.competition_id = c.id
+            WHERE UPPER(c.code) IN ('PL', 'ELC')
+          )
+          ORDER BY t.name ASC;
+        `)
+      : await query(`
+          SELECT DISTINCT t.id, t.external_id, t.name, t.short_name, t.tla, t.crest_url
+          FROM teams t
+          WHERE t.id IN (
+            SELECT f.home_team_id FROM fixtures f
+            JOIN gameweeks gw ON f.gameweek_id = gw.id
+            WHERE gw.competition_id = (
+              SELECT COALESCE(competition_id, (SELECT id FROM competitions WHERE UPPER(code) = 'PL' LIMIT 1))
+              FROM leagues WHERE id::text = $1
+            )
+            UNION
+            SELECT f.away_team_id FROM fixtures f
+            JOIN gameweeks gw ON f.gameweek_id = gw.id
+            WHERE gw.competition_id = (
+              SELECT COALESCE(competition_id, (SELECT id FROM competitions WHERE UPPER(code) = 'PL' LIMIT 1))
+              FROM leagues WHERE id::text = $1
+            )
+          )
+          ORDER BY t.name ASC;
+        `, [leagueId]);
 
     // 2. Fetch user's picks in this league for the active tournament round
     const picksRes = await query(`

@@ -6,6 +6,10 @@ import { NormalizedFixture, NormalizedStandingRow } from '@/core/types/football'
 export interface FixturesApiResponse {
   gameweek: number;
   activeGameweek?: number;
+  pairedGameweeks?: {
+    PL: number;
+    ELC: number;
+  };
   competition?: {
     code: string;
     name: string;
@@ -20,6 +24,8 @@ export interface FixturesApiResponse {
     away_score: number | null;
     settled_at: string | null;
     gameweek_number: number;
+    competition_code?: string;
+    competition_name?: string;
     home_team: {
       id: string;
       external_id: number;
@@ -79,7 +85,7 @@ export function useGameweekFixtures(gameweek?: number, competitionCode = 'PL') {
  * Cached for 15 minutes.
  */
 export function useStandings(competitionCode = 'PL') {
-  const comp = competitionCode || 'PL';
+  const comp = competitionCode === 'BOTH' ? 'PL' : competitionCode || 'PL';
   return useQuery<StandingsApiResponse>({
     queryKey: ['standings', comp],
     queryFn: async () => {

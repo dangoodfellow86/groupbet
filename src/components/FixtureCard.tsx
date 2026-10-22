@@ -132,9 +132,22 @@ export function FixtureCard({
           )}
         </div>
 
-        <span className="text-neutral-500 text-[11px] font-mono">
-          GW {fixture.gameweek_number}
-        </span>
+        <div className="flex items-center gap-1.5">
+          {fixture.competition_code && (
+            <span
+              className={`px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wider border ${
+                fixture.competition_code === 'ELC'
+                  ? 'bg-amber-500/15 text-amber-400 border-amber-500/30'
+                  : 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
+              }`}
+            >
+              {fixture.competition_code === 'ELC' ? 'EFL' : 'PL'}
+            </span>
+          )}
+          <span className="text-neutral-500 text-[11px] font-mono">
+            GW {fixture.gameweek_number}
+          </span>
+        </div>
       </div>
 
       {/* Main Match Row */}

@@ -111,7 +111,7 @@ export async function syncFootballData(competitionCode = 'PL'): Promise<SyncResu
     gameweekMap.set(gw, group);
   }
 
-  // 5. Upsert Gameweeks (only update changed flags)
+  // 5. Upsert Gameweeks (two-pass: compute completion first, then set is_current on lowest uncompleted GW)
   const existingGws = await query<{
     id: string;
     gameweek_number: number;
@@ -121,15 +121,43 @@ export async function syncFootballData(competitionCode = 'PL'): Promise<SyncResu
   const existingGwsMap = new Map(existingGws.rows.map((g) => [g.gameweek_number, g]));
   const gameweekIdMap = new Map<number, string>();
 
-  for (const [gwNumber, gwFixtures] of gameweekMap.entries()) {
+  const sortedGwNumbers = Array.from(gameweekMap.keys()).sort((a, b) => a - b);
+  const gwCompletionMap = new Map<number, { isCompleted: boolean; earliestDeadline: string }>();
+
+  for (const gwNumber of sortedGwNumbers) {
+    const gwFixtures = gameweekMap.get(gwNumber) || [];
     const sortedKickoffs = gwFixtures
       .map((f) => new Date(f.utcDate).getTime())
       .sort((a, b) => a - b);
     const earliestDeadline = new Date(sortedKickoffs[0] || Date.now()).toISOString();
-    const isCurrent = gwNumber === currentGameweek;
+
+    const actionableFixtures = gwFixtures.filter(
+      (f) => !['POSTPONED', 'CANCELLED'].includes(mapApiStatusToMatchStatus(f.status))
+    );
+    const hasUnfinishedFixtures = actionableFixtures.some((f) =>
+      ['SCHEDULED', 'LIVE'].includes(mapApiStatusToMatchStatus(f.status))
+    );
+
     const isCompleted =
-      gwNumber < currentGameweek ||
-      gwFixtures.every((f) => ['FINISHED', 'FT', 'AWARDED'].includes(f.status));
+      (actionableFixtures.length > 0 && !hasUnfinishedFixtures) ||
+      (gwNumber < currentGameweek && !hasUnfinishedFixtures);
+
+    gwCompletionMap.set(gwNumber, { isCompleted, earliestDeadline });
+  }
+
+  // The true active gameweek is the lowest gameweek_number where isCompleted is false
+  // (never stay stuck on a completed gameweek just because Football-Data.org's currentMatchday lags)
+  const firstUncompletedGw = sortedGwNumbers.find(
+    (gwNum) => !gwCompletionMap.get(gwNum)?.isCompleted
+  );
+  const effectiveCurrentGameweek =
+    firstUncompletedGw ?? sortedGwNumbers[sortedGwNumbers.length - 1] ?? currentGameweek;
+
+  for (const gwNumber of sortedGwNumbers) {
+    const meta = gwCompletionMap.get(gwNumber)!;
+    const isCompleted = meta.isCompleted;
+    const isCurrent = gwNumber === effectiveCurrentGameweek;
+    const earliestDeadline = meta.earliestDeadline;
 
     const existingGw = existingGwsMap.get(gwNumber);
     if (!existingGw) {
@@ -305,7 +333,7 @@ export async function syncFootballData(competitionCode = 'PL'): Promise<SyncResu
   }
 
   console.log(
-    `[FootballSync] Current season synced: ${teams.length} teams, ${gameweekMap.size} gameweeks, ${fixtureCount} fixtures (${settledCount} newly settled, ${liveCount} live). Active Matchday: GW ${currentGameweek}`
+    `[FootballSync] Current season synced: ${teams.length} teams, ${gameweekMap.size} gameweeks, ${fixtureCount} fixtures (${settledCount} newly settled, ${liveCount} live). Active Matchday: GW ${effectiveCurrentGameweek} (API reported: GW ${currentGameweek})`
   );
 
   return {
@@ -315,7 +343,7 @@ export async function syncFootballData(competitionCode = 'PL'): Promise<SyncResu
     syncedFixtures: fixtureCount,
     settledFixtures: settledCount,
     liveFixtures: liveCount,
-    currentGameweek,
+    currentGameweek: effectiveCurrentGameweek,
     timestamp: new Date().toISOString(),
   };
 }

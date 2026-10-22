@@ -81,9 +81,11 @@ export function WeeklyFixtures({
   const compCode = competitionCode || 'PL';
   const totalGameweeks = maxGameweeks ?? (compCode === 'ELC' ? 46 : 38);
   const [filterOverride, setFilterOverride] = useState<'picked' | 'all' | null>(null);
+  const [compSubFilter, setCompSubFilter] = useState<'ALL' | 'PL' | 'ELC'>('ALL');
 
   useEffect(() => {
     setFilterOverride(null);
+    setCompSubFilter('ALL');
   }, [currentGameweek, gameMode, compCode]);
 
   const handleGameweekChange = (newGw: number) => {
@@ -161,7 +163,15 @@ export function WeeklyFixtures({
     leaguePickedFixtures.length > 0 &&
     (filterOverride === 'picked' || (filterOverride === null && shouldAutoFilterPicked));
 
-  const displayedFixtures = showOnlyPicked ? leaguePickedFixtures : fixtures;
+  const baseDisplayedFixtures = showOnlyPicked ? leaguePickedFixtures : fixtures;
+  const displayedFixtures =
+    compCode === 'BOTH' && compSubFilter !== 'ALL'
+      ? baseDisplayedFixtures.filter((f) => f.competition_code === compSubFilter)
+      : baseDisplayedFixtures;
+
+  const plFixturesCount = fixtures.filter((f) => f.competition_code === 'PL').length;
+  const elcFixturesCount = fixtures.filter((f) => f.competition_code === 'ELC').length;
+  const pairedGws = data?.pairedGameweeks;
 
   // Group displayed fixtures by formatted date
   const groupedFixtures = displayedFixtures.reduce<Record<string, FixtureItem[]>>((acc, f) => {
@@ -179,7 +189,12 @@ export function WeeklyFixtures({
           <Calendar className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-400 shrink-0" />
           <h2 className="text-base sm:text-lg font-bold text-neutral-100 tracking-tight truncate">
             <span className="hidden sm:inline">
-              {competitionName || (compCode === 'ELC' ? 'Championship' : 'Premier League')}{' '}
+              {competitionName ||
+                (compCode === 'BOTH'
+                  ? 'Premier League + Championship'
+                  : compCode === 'ELC'
+                  ? 'Championship'
+                  : 'Premier League')}{' '}
             </span>
             Fixtures
           </h2>
@@ -257,6 +272,58 @@ export function WeeklyFixtures({
           </button>
         </div>
       </div>
+
+      {/* Combined League (PL + Championship) Filter Bar */}
+      {compCode === 'BOTH' && (
+        <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 rounded-2xl bg-neutral-900/70 border border-neutral-800/80">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <button
+              type="button"
+              onClick={() => setCompSubFilter('ALL')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                compSubFilter === 'ALL'
+                  ? 'bg-emerald-500 text-neutral-950 shadow-sm'
+                  : 'bg-neutral-950 text-neutral-400 hover:text-neutral-200 border border-neutral-800'
+              }`}
+            >
+              All Leagues ({fixtures.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setCompSubFilter('PL')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
+                compSubFilter === 'PL'
+                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/50 shadow-sm'
+                  : 'bg-neutral-950 text-neutral-400 hover:text-neutral-200 border border-neutral-800'
+              }`}
+            >
+              <span>🦁 Premier League ({plFixturesCount})</span>
+              {pairedGws?.PL && (
+                <span className="text-[10px] font-mono opacity-80">GW {pairedGws.PL}</span>
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={() => setCompSubFilter('ELC')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
+                compSubFilter === 'ELC'
+                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/50 shadow-sm'
+                  : 'bg-neutral-950 text-neutral-400 hover:text-neutral-200 border border-neutral-800'
+              }`}
+            >
+              <span>🏆 Championship ({elcFixturesCount})</span>
+              {pairedGws?.ELC && (
+                <span className="text-[10px] font-mono opacity-80">GW {pairedGws.ELC}</span>
+              )}
+            </button>
+          </div>
+          {pairedGws && (
+            <span className="text-[11px] text-neutral-400 font-mono px-2 hidden sm:inline">
+              PL GW {pairedGws.PL} + ELC GW {pairedGws.ELC}
+            </span>
+          )}
+        </div>
+      )}
 
       {/* Historical Archive Notice Banner */}
       {isPastGameweek && (

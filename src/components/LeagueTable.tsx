@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useStandings } from '@/hooks/useFootballData';
 import { Trophy, AlertCircle } from 'lucide-react';
 
@@ -10,25 +10,65 @@ interface LeagueTableProps {
 }
 
 export function LeagueTable({ competitionCode = 'PL', competitionName }: LeagueTableProps) {
-  const comp = competitionCode || 'PL';
+  const isBoth = competitionCode === 'BOTH';
+  const [selectedTab, setSelectedTab] = useState<'PL' | 'ELC'>('PL');
+
+  useEffect(() => {
+    if (!isBoth) {
+      setSelectedTab(competitionCode === 'ELC' ? 'ELC' : 'PL');
+    }
+  }, [competitionCode, isBoth]);
+
+  const comp = isBoth ? selectedTab : competitionCode || 'PL';
   const isChampionship = comp === 'ELC';
-  const leagueTitle = competitionName || (isChampionship ? 'Championship' : 'Premier League');
+  const leagueTitle = isBoth
+    ? isChampionship
+      ? 'Championship'
+      : 'Premier League'
+    : competitionName || (isChampionship ? 'Championship' : 'Premier League');
   const { data, isLoading, isError, error } = useStandings(comp);
   const table = data?.table || [];
 
   return (
     <div className="flex flex-col rounded-xl border border-neutral-800 bg-neutral-900/80 backdrop-blur overflow-hidden shadow-sm">
       {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b border-neutral-800">
+      <div className="flex items-center justify-between p-4 border-b border-neutral-800 gap-2">
         <div className="flex items-center gap-2">
           <Trophy className="w-5 h-5 text-amber-400" />
           <h2 className="text-base font-bold text-neutral-100 tracking-tight">
             League Standings
           </h2>
         </div>
-        <span className="text-xs text-neutral-500 font-medium">
-          {data?.season ? `${leagueTitle} ${data.season}` : leagueTitle}
-        </span>
+        {isBoth ? (
+          <div className="flex items-center gap-1 bg-neutral-950 p-1 rounded-lg border border-neutral-800">
+            <button
+              type="button"
+              onClick={() => setSelectedTab('PL')}
+              className={`px-2 py-0.5 rounded text-[11px] font-bold transition cursor-pointer ${
+                selectedTab === 'PL'
+                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                  : 'text-neutral-400 hover:text-neutral-200'
+              }`}
+            >
+              🦁 PL
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelectedTab('ELC')}
+              className={`px-2 py-0.5 rounded text-[11px] font-bold transition cursor-pointer ${
+                selectedTab === 'ELC'
+                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                  : 'text-neutral-400 hover:text-neutral-200'
+              }`}
+            >
+              🏆 EFL
+            </button>
+          </div>
+        ) : (
+          <span className="text-xs text-neutral-500 font-medium">
+            {data?.season ? `${leagueTitle} ${data.season}` : leagueTitle}
+          </span>
+        )}
       </div>
 
       {/* Table Content */}

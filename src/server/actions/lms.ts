@@ -1,6 +1,12 @@
 'use server';
 
 import { withTransaction, query } from '@/server/db/pool';
+import {
+  isCombinedCompetitions,
+  resolveLeagueRoundGameweeks,
+  resolvePairedGameweeks,
+  resolveSiblingGameweekIdsForFixture,
+} from '@/server/services/gameweek-resolver';
 
 export interface SubmitLmsPickInput {
   entryId: string;
@@ -70,12 +76,26 @@ export async function getUserLmsRoundPicks(
       };
     }
 
-    // 1. Fetch league round
+    // 1. Fetch league round, competition, and settings
     const leagueRes = await query(
-      `SELECT current_round FROM leagues WHERE id::text = $1 LIMIT 1`,
+      `SELECT l.current_round, l.settings, c.code AS comp_code
+       FROM leagues l
+       LEFT JOIN competitions c ON l.competition_id = c.id
+       WHERE l.id::text = $1 LIMIT 1`,
       [leagueId]
     );
     const roundNumber = leagueRes.rows[0]?.current_round || 1;
+    const leagueSettings = leagueRes.rows[0]?.settings || {};
+    const compCode = (leagueRes.rows[0]?.comp_code || 'PL').toUpperCase();
+    const isCombined = isCombinedCompetitions(leagueSettings);
+    const totalTeams = isCombined ? 44 : compCode === 'ELC' ? 24 : 20;
+
+    // For BOTH leagues, compute offset between active ELC GW and active PL GW
+    let elcGwOffset = 0;
+    if (isCombined) {
+      const paired = await resolvePairedGameweeks(undefined, false);
+      elcGwOffset = paired.elcGwNumber - paired.plGwNumber;
+    }
 
     // 2. Fetch user's picks in this round
     const sql = `
@@ -84,6 +104,7 @@ export async function getUserLmsRoundPicks(
         p.team_id,
         p.result,
         gw.gameweek_number,
+        c.code AS pick_comp_code,
         t.name AS team_name,
         t.tla AS team_tla,
         t.crest_url,
@@ -92,6 +113,7 @@ export async function getUserLmsRoundPicks(
       FROM lms_picks p
       JOIN lms_entries e ON p.entry_id = e.id
       JOIN gameweeks gw ON p.gameweek_id = gw.id
+      LEFT JOIN competitions c ON gw.competition_id = c.id
       JOIN teams t ON p.team_id = t.id
       LEFT JOIN fixtures f ON f.gameweek_id = gw.id AND (f.home_team_id = t.id OR f.away_team_id = t.id)
       WHERE e.league_id::text = $1
@@ -103,6 +125,7 @@ export async function getUserLmsRoundPicks(
 
     const picksByGameweek: UserLmsRoundPicksResult['picksByGameweek'] = {};
     const burnedTeamIdsSet = new Set<string>();
+    const uniquePickIds = new Set<string>();
     const now = Date.now();
 
     for (const r of picksRes.rows) {
@@ -110,7 +133,7 @@ export async function getUserLmsRoundPicks(
         ? new Date(r.kickoff_time).getTime() <= now
         : false;
 
-      picksByGameweek[r.gameweek_number] = {
+      const pickPayload = {
         pickId: r.pick_id,
         teamId: r.team_id,
         teamExternalId: r.team_external_id,
@@ -122,14 +145,25 @@ export async function getUserLmsRoundPicks(
         isKickoffPassed,
       };
 
+      picksByGameweek[r.gameweek_number] = pickPayload;
+
+      // In BOTH leagues, also index Championship picks under their paired PL round number
+      if (isCombined && String(r.pick_comp_code || '').toUpperCase() === 'ELC') {
+        const mappedPlGw = Math.max(1, r.gameweek_number - elcGwOffset);
+        if (!picksByGameweek[mappedPlGw]) {
+          picksByGameweek[mappedPlGw] = pickPayload;
+        }
+      }
+
+      uniquePickIds.add(String(r.pick_id));
       burnedTeamIdsSet.add(String(r.team_id));
       if (r.team_external_id) {
         burnedTeamIdsSet.add(String(r.team_external_id));
       }
     }
 
-    const burnedCount = Object.keys(picksByGameweek).length;
-    const availableCount = Math.max(0, 20 - burnedCount);
+    const burnedCount = uniquePickIds.size;
+    const availableCount = Math.max(0, totalTeams - burnedCount);
 
     return {
       success: true,
@@ -218,26 +252,18 @@ export async function submitLmsPick(
       const actualTeamId = teamRes.rows[0].id;
       const actualTeamName = teamName || teamRes.rows[0].name;
 
-      // 4. Resolve Gameweek to database UUID
-      const gwRes = await client.query(
-        `SELECT id, gameweek_number FROM gameweeks WHERE id::text = $1 OR gameweek_number::text = $1 LIMIT 1`,
-        [gameweekId]
-      );
-      if (gwRes.rows.length === 0) {
-        throw new Error(`Gameweek not found.`);
-      }
-      const actualGameweekId = gwRes.rows[0].id;
-
-      // 5. Enforce gameweek kickoff deadline & fixture status
+      // 4. Enforce gameweek kickoff deadline & fixture status (and resolve exact fixture gameweek)
       const fixtureRes = await client.query(
         `
-        SELECT id, kickoff_time, status, home_team_id, away_team_id
+        SELECT id, gameweek_id, kickoff_time, status, home_team_id, away_team_id
         FROM fixtures
         WHERE id::text = $1 OR external_id::text = $1
         LIMIT 1;
         `,
         [fixtureId]
       );
+
+      let actualGameweekId: string | null = null;
 
       if (fixtureRes.rows.length > 0) {
         const fixture = fixtureRes.rows[0];
@@ -253,9 +279,28 @@ export async function submitLmsPick(
         if (fixture.status === 'LIVE' || fixture.status === 'FINISHED') {
           throw new Error('Match is already in play or finished. Pick cannot be changed.');
         }
+
+        actualGameweekId = fixture.gameweek_id;
       } else if (kickoffTime && new Date(kickoffTime).getTime() <= Date.now()) {
         throw new Error('Kickoff has already passed. LMS picks are locked.');
       }
+
+      // 5. Fallback Gameweek resolution if fixture was not matched directly
+      if (!actualGameweekId) {
+        const gwRes = await client.query(
+          `SELECT id, gameweek_number FROM gameweeks WHERE id::text = $1 OR gameweek_number::text = $1 LIMIT 1`,
+          [gameweekId]
+        );
+        if (gwRes.rows.length === 0) {
+          throw new Error(`Gameweek not found.`);
+        }
+        actualGameweekId = gwRes.rows[0].id;
+      }
+
+      const siblingGwIds = await resolveSiblingGameweekIdsForFixture(
+        entry.league_id,
+        actualGameweekId!
+      );
 
       // 6. Enforce no-repeat-team constraint (Burned Team Rule)
       const settings = typeof entry.settings === 'string' ? JSON.parse(entry.settings) : entry.settings || {};
@@ -270,12 +315,12 @@ export async function submitLmsPick(
           JOIN gameweeks gw ON p.gameweek_id = gw.id
           JOIN teams t ON p.team_id = t.id
           WHERE p.entry_id = $1 
-            AND p.gameweek_id != $2 
+            AND NOT (p.gameweek_id = ANY($2::uuid[]))
             AND p.team_id = $3
             AND p.round_number = $4
           LIMIT 1;
           `,
-          [entry.id, actualGameweekId, actualTeamId, entry.current_round || 1]
+          [entry.id, siblingGwIds, actualTeamId, entry.current_round || 1]
         );
 
         if (priorPickRes.rows.length > 0) {
@@ -296,13 +341,13 @@ export async function submitLmsPick(
           JOIN users u ON e.user_id = u.id
           JOIN teams t ON p.team_id = t.id
           WHERE e.league_id = $1
-            AND p.gameweek_id = $2
+            AND p.gameweek_id = ANY($2::uuid[])
             AND p.team_id = $3
             AND e.id != $4
             AND e.status != 'ELIMINATED'
           LIMIT 1;
           `,
-          [entry.league_id, actualGameweekId, actualTeamId, entry.id]
+          [entry.league_id, siblingGwIds, actualTeamId, entry.id]
         );
 
         if (leagueClaimRes.rows.length > 0) {
@@ -314,7 +359,21 @@ export async function submitLmsPick(
         }
       }
 
-      // 8. Upsert pick record with PENDING status
+      // 8. In combined (PL + ELC) leagues, clear any PENDING pick in the sibling competition's gameweek for this round
+      if (siblingGwIds.length > 1) {
+        await client.query(
+          `
+          DELETE FROM lms_picks
+          WHERE entry_id = $1
+            AND gameweek_id = ANY($2::uuid[])
+            AND gameweek_id != $3
+            AND result = 'PENDING';
+          `,
+          [entry.id, siblingGwIds, actualGameweekId]
+        );
+      }
+
+      // 9. Upsert pick record with PENDING status
       const pickUpsert = await client.query(
         `
         INSERT INTO lms_picks (entry_id, gameweek_id, team_id, result, round_number)
@@ -401,7 +460,7 @@ export async function removeLmsPick(
     return await withTransaction(async (client) => {
       // 1. Resolve Entry
       const entryRes = await client.query(
-        `SELECT id, status FROM lms_entries WHERE id::text = $1 FOR UPDATE`,
+        `SELECT id, league_id, status FROM lms_entries WHERE id::text = $1 FOR UPDATE`,
         [entryId]
       );
 
@@ -417,23 +476,32 @@ export async function removeLmsPick(
         throw new Error('Eliminated entries cannot modify picks.');
       }
 
-      // 2. Resolve Gameweek
+      // 2. Resolve Gameweek(s) for this league round
+      const numericGw = /^\d+$/.test(String(gameweekId)) ? Number(gameweekId) : undefined;
+      const roundContext = await resolveLeagueRoundGameweeks(entry.league_id, numericGw);
+      const targetGwIds = new Set<string>(roundContext.gameweekIds);
+
       const gwRes = await client.query(
         `SELECT id FROM gameweeks WHERE id::text = $1 OR gameweek_number::text = $1 LIMIT 1`,
         [gameweekId]
       );
-      const targetGwId = gwRes.rows.length > 0 ? gwRes.rows[0].id : gameweekId;
+      if (gwRes.rows.length > 0) {
+        targetGwIds.add(gwRes.rows[0].id);
+      }
 
-      // 3. Find active pick for this gameweek and check kickoff deadline
+      const gwIdArray = Array.from(targetGwIds);
+
+      // 3. Find active pick for this gameweek/round and check kickoff deadline
       const pickRes = await client.query(
         `
-        SELECT p.id, p.result, f.kickoff_time, f.status AS fixture_status
+        SELECT p.id, p.gameweek_id, p.result, f.kickoff_time, f.status AS fixture_status
         FROM lms_picks p
         LEFT JOIN fixtures f ON f.gameweek_id = p.gameweek_id AND (f.home_team_id = p.team_id OR f.away_team_id = p.team_id)
-        WHERE p.entry_id = $1 AND p.gameweek_id = $2
+        WHERE p.entry_id = $1 AND p.gameweek_id = ANY($2::uuid[])
+        ORDER BY p.updated_at DESC NULLS LAST
         LIMIT 1;
         `,
-        [entry.id, targetGwId]
+        [entry.id, gwIdArray]
       );
 
       if (pickRes.rows.length === 0) {
@@ -453,8 +521,8 @@ export async function removeLmsPick(
 
       // 4. Delete the pick
       await client.query(
-        `DELETE FROM lms_picks WHERE entry_id = $1 AND gameweek_id = $2`,
-        [entry.id, targetGwId]
+        `DELETE FROM lms_picks WHERE id = $1`,
+        [pick.id]
       );
 
       return {

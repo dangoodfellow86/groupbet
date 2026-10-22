@@ -3,6 +3,10 @@
 import { query, withTransaction } from '@/server/db/pool';
 import { getCurrentUser } from '@/server/auth/session';
 import { MarketType, MatchOutcome, PredictorLeaderboard, User } from '@/core/types/database';
+import {
+  resolveLeagueRoundGameweeks,
+  resolveSiblingGameweekIdsForFixture,
+} from '@/server/services/gameweek-resolver';
 
 export interface SubmitPredictorPicksInput {
   leagueId: string;
@@ -113,9 +117,14 @@ export async function submitPredictorPicks(
         }
       }
 
-      // 5. Weekly Prediction Limit Check (Default: 1 match per gameweek)
+      // 5. Weekly Prediction Limit Check (Default: 1 match per gameweek/round)
+      const siblingGwIds = await resolveSiblingGameweekIdsForFixture(
+        leagueId,
+        fixture.gameweek_id
+      );
+
       if (matchesLimit === 1) {
-        // Automatically replace any previous match pick in this gameweek
+        // Automatically replace any previous match pick in this round (including paired PL+ELC gameweek)
         await client.query(
           `
           DELETE FROM predictor_picks pp
@@ -123,10 +132,10 @@ export async function submitPredictorPicks(
           WHERE pp.fixture_id = f.id
             AND pp.league_id = $1
             AND pp.user_id = $2
-            AND f.gameweek_id = $3
+            AND f.gameweek_id = ANY($3::uuid[])
             AND pp.fixture_id != $4;
           `,
-          [leagueId, userId, fixture.gameweek_id, actualFixtureId]
+          [leagueId, userId, siblingGwIds, actualFixtureId]
         );
       } else if (matchesLimit !== 'ALL' && typeof matchesLimit === 'number' && matchesLimit > 1) {
         const otherFixturesRes = await client.query(
@@ -136,10 +145,10 @@ export async function submitPredictorPicks(
           JOIN fixtures f ON pp.fixture_id = f.id
           WHERE pp.league_id = $1
             AND pp.user_id = $2
-            AND f.gameweek_id = $3
+            AND f.gameweek_id = ANY($3::uuid[])
             AND pp.fixture_id != $4;
           `,
-          [leagueId, userId, fixture.gameweek_id, actualFixtureId]
+          [leagueId, userId, siblingGwIds, actualFixtureId]
         );
 
         if (otherFixturesRes.rows[0].count >= matchesLimit) {
@@ -284,6 +293,9 @@ export async function getUserGameweekPredictions(
       userId = user.id;
     }
 
+    const roundContext = await resolveLeagueRoundGameweeks(leagueId, gameweekNumber);
+    const hasRoundGwIds = roundContext.gameweekIds.length > 0;
+
     const res = await query(
       `
       SELECT 
@@ -300,9 +312,9 @@ export async function getUserGameweekPredictions(
       JOIN gameweeks gw ON f.gameweek_id = gw.id
       WHERE p.league_id::text = $1 
         AND p.user_id::text = $2
-        AND gw.gameweek_number = $3
+        AND ${hasRoundGwIds ? 'f.gameweek_id = ANY($3::uuid[])' : 'gw.gameweek_number = $3'}
       `,
-      [leagueId, userId, gameweekNumber]
+      [leagueId, userId, hasRoundGwIds ? roundContext.gameweekIds : gameweekNumber]
     );
 
     const predictions: Record<string, UserFixturePrediction> = {};
@@ -636,6 +648,8 @@ export async function getLeagueGameweekPredictorClaims(
       : {};
 
     const exclusiveMatches = settings.allow_duplicate_predictions !== true;
+    const roundContext = await resolveLeagueRoundGameweeks(leagueId, gameweekNumber);
+    const hasRoundGwIds = roundContext.gameweekIds.length > 0;
 
     const sql = `
       SELECT 
@@ -654,10 +668,13 @@ export async function getLeagueGameweekPredictorClaims(
       JOIN fixtures f ON pp.fixture_id = f.id
       JOIN gameweeks gw ON f.gameweek_id = gw.id
       WHERE pp.league_id::text = $1
-        AND gw.gameweek_number = $2;
+        AND ${hasRoundGwIds ? 'f.gameweek_id = ANY($2::uuid[])' : 'gw.gameweek_number = $2'};
     `;
 
-    const res = await query(sql, [leagueId, gameweekNumber]);
+    const res = await query(sql, [
+      leagueId,
+      hasRoundGwIds ? roundContext.gameweekIds : gameweekNumber,
+    ]);
     const claims: Record<string, PredictorMatchClaim> = {};
     const fixtureUsersMap = new Map<string, Set<string>>();
 

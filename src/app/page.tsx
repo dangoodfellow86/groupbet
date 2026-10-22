@@ -75,7 +75,13 @@ export default function DashboardPage() {
   } = useUserSession();
 
   const activeCompCode = activeLeague?.competition_code || 'PL';
-  const activeCompName = activeLeague?.competition_name || (activeCompCode === 'ELC' ? 'Championship' : 'Premier League');
+  const activeCompName =
+    activeLeague?.competition_name ||
+    (activeCompCode === 'BOTH'
+      ? 'Premier League + Championship'
+      : activeCompCode === 'ELC'
+      ? 'Championship'
+      : 'Premier League');
   const maxGameweeks = activeCompCode === 'ELC' ? 46 : 38;
 
   // Query current fixtures to dynamically identify the active gameweek for the active league competition

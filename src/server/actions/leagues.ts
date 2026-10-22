@@ -3,6 +3,11 @@
 import { query, withTransaction } from '@/server/db/pool';
 import { getCurrentUser, getOrCreateUser } from '@/server/auth/session';
 import { League, LeagueType, LeagueMember, LmsEntry, User } from '@/core/types/database';
+import {
+  isCombinedCompetitions,
+  resolveActiveGameweek,
+  resolveLeagueRoundGameweeks,
+} from '@/server/services/gameweek-resolver';
 
 const CHARS = '23456789ABCDEFGHJKMNPQRSTUVWXYZ'; // Avoid 0, O, 1, I, L
 
@@ -65,14 +70,18 @@ export async function createLeague(input: CreateLeagueInput): Promise<CreateLeag
     const currentUser = await getCurrentUser();
     const user = currentUser || (await getOrCreateUser(input.creatorDisplayName, input.creatorEmail));
 
-    // 2. Fetch active competition (Premier League or EFL Championship)
-    const compCode = (input.competitionCode || 'PL').toUpperCase();
+    // 2. Fetch active competition (Premier League, EFL Championship, or Both)
+    const rawCompCode = (input.competitionCode || 'PL').toUpperCase();
+    const isBoth = rawCompCode === 'BOTH';
+    const primaryCompCode = isBoth ? 'PL' : rawCompCode;
+    const includedCompetitions = isBoth ? ['PL', 'ELC'] : [primaryCompCode];
+
     const compRes = await query(
       `SELECT id, name, code FROM competitions WHERE UPPER(code) = $1 LIMIT 1`,
-      [compCode]
+      [primaryCompCode]
     );
     if (compRes.rows.length === 0) {
-      return { success: false, message: `Active competition (${compCode}) not found in database.` };
+      return { success: false, message: `Active competition (${primaryCompCode}) not found in database.` };
     }
     const competitionId = compRes.rows[0].id;
 
@@ -85,11 +94,11 @@ export async function createLeague(input: CreateLeagueInput): Promise<CreateLeag
     const startingLives = isLms ? (input.startingLives ?? 1) : 0;
     let startingGameweek = input.startingGameweek;
     if (!startingGameweek) {
-      const activeGwRes = await query<{ gameweek_number: number }>(
-        'SELECT gameweek_number FROM gameweeks WHERE competition_id = $1 AND is_current = TRUE LIMIT 1',
-        [competitionId]
-      );
-      startingGameweek = activeGwRes.rows[0]?.gameweek_number ?? 1;
+      startingGameweek = await resolveActiveGameweek({
+        competitionId,
+        competitionCode: primaryCompCode,
+        allowOverdueAutoSync: false,
+      });
     }
 
     const settings = {
@@ -99,6 +108,7 @@ export async function createLeague(input: CreateLeagueInput): Promise<CreateLeag
       matches_per_gameweek: input.matchesPerGameweek ?? 1,
       allow_duplicate_predictions: input.allowDuplicatePredictions ?? false,
       exclusive_team_picks: input.exclusiveTeamPicks ?? true,
+      included_competitions: includedCompetitions,
     };
 
     // 4. Create League and initial entry in transaction
@@ -227,6 +237,7 @@ export async function getLeagueByInviteCode(
 
     const row = res.rows[0];
     const settings = typeof row.settings === 'string' ? JSON.parse(row.settings) : row.settings || {};
+    const isCombined = isCombinedCompetitions(settings);
 
     const preview: LeaguePreview = {
       id: row.id,
@@ -243,8 +254,8 @@ export async function getLeagueByInviteCode(
       allow_duplicate_predictions: settings.allow_duplicate_predictions ?? false,
       exclusive_team_picks: settings.exclusive_team_picks ?? true,
       competition_id: row.competition_id,
-      competition_code: row.competition_code || 'PL',
-      competition_name: row.competition_name || 'Premier League',
+      competition_code: isCombined ? 'BOTH' : row.competition_code || 'PL',
+      competition_name: isCombined ? 'Premier League + Championship' : row.competition_name || 'Premier League',
       created_at: row.created_at,
     };
 
@@ -439,6 +450,7 @@ export async function getUserLeagues(userIdOverride?: string): Promise<UserLeagu
 
     return res.rows.map((row) => {
       const s = typeof row.settings === 'string' ? JSON.parse(row.settings) : row.settings || {};
+      const combined = isCombinedCompetitions(s);
       return {
         id: row.id,
         name: row.name,
@@ -455,8 +467,10 @@ export async function getUserLeagues(userIdOverride?: string): Promise<UserLeagu
         allow_duplicate_predictions: s.allow_duplicate_predictions ?? false,
         exclusive_team_picks: s.exclusive_team_picks ?? true,
         competition_id: row.competition_id,
-        competition_code: row.competition_code || 'PL',
-        competition_name: row.competition_name || 'Premier League',
+        competition_code: combined ? 'BOTH' : (row.competition_code || 'PL'),
+        competition_name: combined
+          ? 'Premier League + Championship'
+          : (row.competition_name || 'Premier League'),
         created_at: row.created_at,
       };
     });
@@ -512,7 +526,9 @@ export async function getLeagueSurvivorBoard(
       : leagueRes.rows[0].settings || {};
     const isExclusive = settings.exclusive_team_picks ?? true;
 
-    // Fetch all LMS entries joined with users, gameweek pick, team, and fixture kickoff
+    const roundContext = await resolveLeagueRoundGameweeks(leagueId, gameweekNumber);
+
+    // Fetch all LMS entries joined with users, gameweek pick (across paired gameweeks for BOTH), team, and fixture kickoff
     const sql = `
       SELECT 
         u.id AS user_id,
@@ -530,10 +546,16 @@ export async function getLeagueSurvivorBoard(
       FROM lms_entries e
       JOIN users u ON e.user_id = u.id
       JOIN leagues l ON e.league_id = l.id
-      LEFT JOIN gameweeks gw ON gw.gameweek_number = $2 AND gw.competition_id = l.competition_id
-      LEFT JOIN lms_picks p ON p.entry_id = e.id AND p.gameweek_id = gw.id
+      LEFT JOIN LATERAL (
+        SELECT lp.team_id, lp.result, lp.gameweek_id
+        FROM lms_picks lp
+        WHERE lp.entry_id = e.id
+          AND lp.gameweek_id = ANY($2::uuid[])
+        ORDER BY lp.updated_at DESC
+        LIMIT 1
+      ) p ON TRUE
       LEFT JOIN teams t ON p.team_id = t.id
-      LEFT JOIN fixtures f ON f.gameweek_id = gw.id AND (f.home_team_id = t.id OR f.away_team_id = t.id)
+      LEFT JOIN fixtures f ON f.gameweek_id = p.gameweek_id AND (f.home_team_id = t.id OR f.away_team_id = t.id)
       WHERE e.league_id::text = $1
       ORDER BY 
         CASE 
@@ -545,26 +567,7 @@ export async function getLeagueSurvivorBoard(
         u.display_name ASC
     `;
 
-    let targetGw = gameweekNumber;
-    if (!targetGw) {
-      const activeGwRes = await query<{ gameweek_number: number }>(
-        `SELECT gw.gameweek_number 
-         FROM gameweeks gw 
-         JOIN leagues l ON l.competition_id = gw.competition_id 
-         WHERE l.id::text = $1 AND gw.is_current = TRUE 
-         LIMIT 1`,
-        [leagueId]
-      );
-      targetGw = activeGwRes.rows[0]?.gameweek_number;
-      if (!targetGw) {
-        const fallbackRes = await query<{ gameweek_number: number }>(
-          'SELECT gameweek_number FROM gameweeks WHERE is_current = TRUE LIMIT 1'
-        );
-        targetGw = fallbackRes.rows[0]?.gameweek_number ?? 1;
-      }
-    }
-
-    const res = await query(sql, [leagueId, targetGw]);
+    const res = await query(sql, [leagueId, roundContext.gameweekIds]);
     const now = Date.now();
 
     const players: SurvivorBoardPlayer[] = res.rows.map((row) => {
@@ -656,6 +659,7 @@ export async function getLeagueGameweekLmsPicks(
       : {};
 
     const exclusiveTeamPicks = settings.exclusive_team_picks ?? true;
+    const roundContext = await resolveLeagueRoundGameweeks(leagueId, gameweekNumber);
 
     const sql = `
       SELECT 
@@ -670,13 +674,12 @@ export async function getLeagueGameweekLmsPicks(
       JOIN lms_entries e ON p.entry_id = e.id
       JOIN users u ON e.user_id = u.id
       JOIN teams t ON p.team_id = t.id
-      JOIN gameweeks gw ON p.gameweek_id = gw.id
       WHERE e.league_id::text = $1
-        AND gw.gameweek_number = $2
+        AND p.gameweek_id = ANY($2::uuid[])
         AND e.status != 'ELIMINATED';
     `;
 
-    const res = await query(sql, [leagueId, gameweekNumber]);
+    const res = await query(sql, [leagueId, roundContext.gameweekIds]);
     const claims: Record<string, LeagueTeamClaim> = {};
 
     for (const row of res.rows) {

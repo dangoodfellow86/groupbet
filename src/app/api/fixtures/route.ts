@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/server/db/pool';
 import { footballClient } from '@/core/api/football';
 import { syncFootballData } from '@/server/services/football-sync';
+import {
+  resolveActiveGameweek,
+  resolvePairedGameweeks,
+} from '@/server/services/gameweek-resolver';
 
 export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl;
@@ -13,14 +17,82 @@ export async function GET(req: NextRequest) {
   // On-demand sync when requested (e.g. user clicked refresh in UI)
   if (shouldRefresh) {
     try {
-      await syncFootballData(compParam);
+      if (compParam === 'BOTH') {
+        await Promise.all([syncFootballData('PL'), syncFootballData('ELC')]);
+      } else {
+        await syncFootballData(compParam);
+      }
     } catch (syncErr: any) {
       console.warn(`[API /api/fixtures] On-demand sync failed for ${compParam}:`, syncErr.message);
     }
   }
 
   try {
-    // 1. Resolve competition metadata
+    // Combined Mode: Both Premier League + Championship
+    if (compParam === 'BOTH') {
+      const paired = await resolvePairedGameweeks(gwNumber, true);
+      if (paired.gameweekIds.length > 0) {
+        const fixturesRes = await query(
+          `
+          SELECT 
+            f.id,
+            f.external_id,
+            f.gameweek_id,
+            f.kickoff_time,
+            f.status,
+            f.home_score,
+            f.away_score,
+            f.settled_at,
+            gw.gameweek_number,
+            c.code AS competition_code,
+            c.name AS competition_name,
+            json_build_object(
+              'id', ht.id,
+              'external_id', ht.external_id,
+              'name', ht.name,
+              'short_name', ht.short_name,
+              'tla', ht.tla,
+              'crest_url', ht.crest_url
+            ) AS home_team,
+            json_build_object(
+              'id', at.id,
+              'external_id', at.external_id,
+              'name', at.name,
+              'short_name', at.short_name,
+              'tla', at.tla,
+              'crest_url', at.crest_url
+            ) AS away_team
+          FROM fixtures f
+          JOIN gameweeks gw ON f.gameweek_id = gw.id
+          JOIN competitions c ON gw.competition_id = c.id
+          JOIN teams ht ON f.home_team_id = ht.id
+          JOIN teams at ON f.away_team_id = at.id
+          WHERE f.gameweek_id = ANY($1::uuid[])
+          ORDER BY f.kickoff_time ASC, c.code ASC
+          `,
+          [paired.gameweekIds]
+        );
+
+        if (fixturesRes.rows.length > 0) {
+          return NextResponse.json({
+            gameweek: paired.plGwNumber,
+            activeGameweek: paired.activePlGw,
+            pairedGameweeks: {
+              PL: paired.plGwNumber,
+              ELC: paired.elcGwNumber,
+            },
+            competition: {
+              code: 'BOTH',
+              name: 'Premier League + Championship',
+            },
+            fixtures: fixturesRes.rows,
+            source: 'db',
+          });
+        }
+      }
+    }
+
+    // Single Competition Mode ('PL' or 'ELC')
     const compRes = await query<{ id: string; name: string; code: string }>(
       'SELECT id, name, code FROM competitions WHERE UPPER(code) = $1 LIMIT 1',
       [compParam]
@@ -28,28 +100,11 @@ export async function GET(req: NextRequest) {
     const comp = compRes.rows[0];
     const compId = comp?.id;
 
-    // 2. Determine active and target gameweek
-    let activeGameweek = 1;
-    if (compId) {
-      const activeGwRes = await query<{ gameweek_number: number }>(
-        'SELECT gameweek_number FROM gameweeks WHERE competition_id = $1 AND is_current = TRUE LIMIT 1',
-        [compId]
-      );
-      if (activeGwRes.rows[0]) {
-        activeGameweek = activeGwRes.rows[0].gameweek_number;
-      } else {
-        const nextGwRes = await query<{ gameweek_number: number }>(
-          'SELECT gameweek_number FROM gameweeks WHERE competition_id = $1 AND is_completed = FALSE ORDER BY gameweek_number ASC LIMIT 1',
-          [compId]
-        );
-        activeGameweek = nextGwRes.rows[0]?.gameweek_number || 1;
-      }
-    } else {
-      const fallbackGwRes = await query<{ gameweek_number: number }>(
-        'SELECT gameweek_number FROM gameweeks WHERE is_current = TRUE LIMIT 1'
-      );
-      activeGameweek = fallbackGwRes.rows[0]?.gameweek_number || 1;
-    }
+    // Determine active and target gameweek via self-healing resolver
+    const activeGameweek = await resolveActiveGameweek({
+      competitionId: compId || null,
+      competitionCode: compParam,
+    });
 
     const currentGw = gwNumber ?? activeGameweek;
 
@@ -65,6 +120,8 @@ export async function GET(req: NextRequest) {
         f.away_score,
         f.settled_at,
         gw.gameweek_number,
+        c.code AS competition_code,
+        c.name AS competition_name,
         json_build_object(
           'id', ht.id,
           'external_id', ht.external_id,
@@ -83,6 +140,7 @@ export async function GET(req: NextRequest) {
         ) AS away_team
       FROM fixtures f
       JOIN gameweeks gw ON f.gameweek_id = gw.id
+      JOIN competitions c ON gw.competition_id = c.id
       JOIN teams ht ON f.home_team_id = ht.id
       JOIN teams at ON f.away_team_id = at.id
       WHERE gw.gameweek_number = $1
@@ -108,9 +166,10 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  // 2. Fallback to FootballApiClient
+  // Fallback to FootballApiClient
   try {
-    const res = await footballClient.getFixtures(compParam, gwNumber);
+    const targetApiComp = compParam === 'BOTH' ? 'PL' : compParam;
+    const res = await footballClient.getFixtures(targetApiComp, gwNumber);
     const fixtures = res.matches;
     const normalizedFixtures = fixtures.map((f) => ({
       id: String(f.id),
@@ -122,6 +181,8 @@ export async function GET(req: NextRequest) {
       away_score: f.awayScore,
       settled_at: f.status === 'FINISHED' ? f.utcDate : null,
       gameweek_number: f.gameweek,
+      competition_code: targetApiComp,
+      competition_name: targetApiComp === 'ELC' ? 'Championship' : 'Premier League',
       home_team: {
         id: String(f.homeTeam.id),
         external_id: f.homeTeam.id,
@@ -144,7 +205,15 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       gameweek: gwNumber || activeGw,
       activeGameweek: activeGw,
-      competition: { code: compParam, name: compParam === 'ELC' ? 'Championship' : 'Premier League' },
+      competition: {
+        code: compParam,
+        name:
+          compParam === 'BOTH'
+            ? 'Premier League + Championship'
+            : compParam === 'ELC'
+            ? 'Championship'
+            : 'Premier League',
+      },
       fixtures: normalizedFixtures,
       source: 'api',
     });
