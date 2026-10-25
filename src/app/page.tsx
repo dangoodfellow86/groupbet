@@ -26,6 +26,7 @@ import { LegalModal } from '@/components/LegalModal';
 import { RulesModal, RulesTab } from '@/components/rules/RulesModal';
 import { OnboardingModal, hasSeenOnboarding } from '@/components/onboarding/OnboardingModal';
 import { FeedbackModal } from '@/components/FeedbackModal';
+import { PwaInstallModal, PwaInstallBanner, usePwaInstall } from '@/components/PwaInstallModal';
 import { StandingsShareItem } from '@/lib/sharing';
 import { useUserSession } from '@/hooks/useUserSession';
 import { useMatchdayRealtime } from '@/hooks/useMatchdayRealtime';
@@ -147,6 +148,16 @@ export default function DashboardPage() {
   const [rulesModalTab, setRulesModalTab] = useState<RulesTab>('lms');
   const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
   const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
+  const [isInstallModalOpen, setIsInstallModalOpen] = useState(false);
+
+  const {
+    isStandalone,
+    isIOS,
+    canNativePrompt,
+    showMobileBanner,
+    triggerNativeInstall,
+    dismissBanner,
+  } = usePwaInstall();
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -585,6 +596,8 @@ export default function DashboardPage() {
                 setIsRulesModalOpen(true);
               }}
               onOpenFeedback={() => setIsFeedbackModalOpen(true)}
+              onOpenInstallApp={() => setIsInstallModalOpen(true)}
+              showInstallApp={!isStandalone}
               onUserLoggedOut={() => {
                 refetchSession();
                 queryClient.invalidateQueries({ queryKey: ['user-session'] });
@@ -596,6 +609,22 @@ export default function DashboardPage() {
 
       {/* Main Container */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8 pb-24 lg:pb-8">
+        {/* Mobile PWA Add to Home Screen Banner */}
+        {showMobileBanner && (
+          <PwaInstallBanner
+            isIOS={isIOS}
+            canNativePrompt={canNativePrompt}
+            onInstallClick={async () => {
+              if (canNativePrompt) {
+                await triggerNativeInstall();
+              } else {
+                setIsInstallModalOpen(true);
+              }
+            }}
+            onDismiss={dismissBanner}
+          />
+        )}
+
         {/* Welcome Callout if No Leagues Joined Yet */}
         {leagues.length === 0 ? (
           <div className="mb-8 p-6 sm:p-8 rounded-3xl bg-gradient-to-br from-neutral-900 via-neutral-900/90 to-emerald-950/40 border border-emerald-500/20 shadow-2xl flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
@@ -1343,6 +1372,16 @@ export default function DashboardPage() {
         userId={user?.id}
         activeLeagueId={activeLeague?.id}
         activeLeagueName={activeLeague?.name}
+      />
+
+      {/* PWA Install / Add to Home Screen Modal */}
+      <PwaInstallModal
+        isOpen={isInstallModalOpen}
+        onClose={() => setIsInstallModalOpen(false)}
+        isIOS={isIOS}
+        isStandalone={isStandalone}
+        canNativePrompt={canNativePrompt}
+        onTriggerNativeInstall={triggerNativeInstall}
       />
 
       {/* Persistent Site Footer */}

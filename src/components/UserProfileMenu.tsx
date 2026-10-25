@@ -18,6 +18,7 @@ import {
   FileText,
   BookOpen,
   MessageSquarePlus,
+  Download,
 } from 'lucide-react';
 
 interface UserProfileMenuProps {
@@ -28,6 +29,8 @@ interface UserProfileMenuProps {
   onOpenLegal?: (tab: 'terms' | 'privacy') => void;
   onOpenRules?: (tab?: 'lms' | 'predictor' | 'navigation') => void;
   onOpenFeedback?: () => void;
+  onOpenInstallApp?: () => void;
+  showInstallApp?: boolean;
   onUserLoggedOut?: () => void;
 }
 
@@ -39,6 +42,8 @@ export function UserProfileMenu({
   onOpenLegal,
   onOpenRules,
   onOpenFeedback,
+  onOpenInstallApp,
+  showInstallApp = false,
   onUserLoggedOut,
 }: UserProfileMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
@@ -237,6 +242,20 @@ export function UserProfileMenu({
               >
                 <MessageSquarePlus className="w-3.5 h-3.5 text-emerald-400" />
                 <span>Share Feedback &amp; Support</span>
+              </button>
+            )}
+
+            {showInstallApp && onOpenInstallApp && (
+              <button
+                type="button"
+                onClick={() => {
+                  setIsOpen(false);
+                  onOpenInstallApp();
+                }}
+                className="w-full px-3 py-2 rounded-lg text-xs text-neutral-300 hover:text-neutral-100 hover:bg-neutral-800 transition flex items-center gap-2 text-left cursor-pointer"
+              >
+                <Download className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Install App (Home Screen)</span>
               </button>
             )}
 
