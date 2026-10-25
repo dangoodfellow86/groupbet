@@ -12,19 +12,34 @@ interface UserSessionResponse {
 
 export function useUserSession() {
   const queryClient = useQueryClient();
-  const [activeLeagueId, setActiveLeagueIdState] = useState<string | null>(null);
+  const [activeLeagueId, setActiveLeagueIdState] = useState<string | null>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        return localStorage.getItem('gb_active_league_id');
+      } catch {
+        return null;
+      }
+    }
+    return null;
+  });
+  const [isHydrated, setIsHydrated] = useState(false);
 
   // Initialize activeLeagueId from localStorage if present
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('gb_active_league_id');
-      if (saved) {
-        setActiveLeagueIdState(saved);
+      try {
+        const saved = localStorage.getItem('gb_active_league_id');
+        if (saved) {
+          setActiveLeagueIdState(saved);
+        }
+      } catch {
+        // Ignore storage errors
       }
+      setIsHydrated(true);
     }
   }, []);
 
-  const { data, isLoading, refetch } = useQuery<UserSessionResponse>({
+  const { data, isLoading: isQueryLoading, refetch } = useQuery<UserSessionResponse>({
     queryKey: ['user-session'],
     queryFn: async () => {
       const res = await fetch('/api/user/session');
@@ -35,6 +50,8 @@ export function useUserSession() {
     },
     staleTime: 10 * 1000,
   });
+
+  const isLoading = !isHydrated || isQueryLoading;
 
   const leagues = data?.leagues || [];
   const user = data?.user || null;

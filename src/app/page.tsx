@@ -19,6 +19,7 @@ import { AuthModal } from '@/components/AuthModal';
 import { UserProfileMenu } from '@/components/UserProfileMenu';
 import { MatchdayLiveNotifier } from '@/components/MatchdayLiveNotifier';
 import { SquadPicksLogo } from '@/components/SquadPicksLogo';
+import { AppLoadingScreen } from '@/components/AppLoadingScreen';
 import { MobileBottomNav, MobileNavTab } from '@/components/MobileBottomNav';
 import { SiteFooter } from '@/components/SiteFooter';
 import { LegalModal } from '@/components/LegalModal';
@@ -71,6 +72,7 @@ export default function DashboardPage() {
     activeLeague,
     activeLeagueId,
     setActiveLeagueId,
+    isLoading: isSessionLoading,
     refetch: refetchSession,
   } = useUserSession();
 
@@ -85,8 +87,14 @@ export default function DashboardPage() {
   const maxGameweeks = activeCompCode === 'ELC' ? 46 : 38;
 
   // Query current fixtures to dynamically identify the active gameweek for the active league competition
-  const { data: currentFixturesData } = useGameweekFixtures(undefined, activeCompCode);
-  const activeGameweek = currentFixturesData?.activeGameweek ?? currentFixturesData?.gameweek ?? (activeCompCode === 'ELC' ? 9 : 6);
+  const { data: currentFixturesData, isLoading: isActiveGwLoading } = useGameweekFixtures(
+    undefined,
+    activeCompCode
+  );
+  const activeGameweek =
+    currentFixturesData?.activeGameweek ??
+    currentFixturesData?.gameweek ??
+    (activeCompCode === 'ELC' ? 12 : 8);
 
   const [gameMode, setGameMode] = useState<'lms' | 'predictor'>('lms');
   const [mobileTab, setMobileTab] = useState<MobileNavTab>('picks');
@@ -440,6 +448,11 @@ export default function DashboardPage() {
     }
     setIsShareModalOpen(true);
   };
+
+  // Intercept initial page flash until session and active gameweek have resolved
+  if (isSessionLoading || (isActiveGwLoading && !currentFixturesData)) {
+    return <AppLoadingScreen />;
+  }
 
   return (
     <div className="min-h-screen bg-brand-950 text-brand-50 flex flex-col">
