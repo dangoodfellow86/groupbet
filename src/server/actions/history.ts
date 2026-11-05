@@ -175,17 +175,22 @@ export async function getLeagueHistoryMatrix(
     `;
     const predictorRes = await query(predictorSql, [leagueId]);
 
-    // 5. Determine active / relevant gameweeks dynamically
+    // 5. Determine active / relevant gameweeks dynamically (respecting starting_gameweek)
     const baseCurrentGw = await resolveActiveGameweek({
       competitionId: league.competition_id || null,
       allowOverdueAutoSync: false,
     });
+    const startingGw = Math.max(1, Number(settings.starting_gameweek) || 1);
     const pickGws: number[] = [
       ...lmsRes.rows.map((r: any) => mapRoundGw(r.gameweek_number, r.comp_code)),
       ...predictorRes.rows.map((r: any) => mapRoundGw(r.gameweek_number, r.comp_code)),
     ];
-    const currentGameweek = Math.max(baseCurrentGw, ...pickGws, 1);
-    const gameweeks = Array.from({ length: currentGameweek }, (_, i) => i + 1);
+    const minGameweek = pickGws.length > 0 ? Math.min(startingGw, ...pickGws) : startingGw;
+    const currentGameweek = Math.max(baseCurrentGw, startingGw, ...pickGws, 1);
+    const gameweeks = Array.from(
+      { length: Math.max(1, currentGameweek - minGameweek + 1) },
+      (_, i) => minGameweek + i
+    );
 
     // Build index of predictor points: Record<`${userId}_${gw}`, points>
     const predictorPointsIndex: Record<string, number> = {};

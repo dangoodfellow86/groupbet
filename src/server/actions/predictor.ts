@@ -4,7 +4,9 @@ import { query, withTransaction } from '@/server/db/pool';
 import { getCurrentUser } from '@/server/auth/session';
 import { MarketType, MatchOutcome, PredictorLeaderboard, User } from '@/core/types/database';
 import {
+  isCombinedCompetitions,
   resolveLeagueRoundGameweeks,
+  resolvePairedGameweeks,
   resolveSiblingGameweekIdsForFixture,
 } from '@/server/services/gameweek-resolver';
 
@@ -82,11 +84,36 @@ export async function submitPredictorPicks(
 
       const actualFixtureId = fixture.id;
 
-      // 3. Resolve League Settings (Matches per gameweek & Duplicate match claim rules)
+      // 3. Resolve League Settings (Matches per gameweek, Starting Gameweek & Duplicate match claim rules)
       const leagueRes = await client.query(`SELECT settings FROM leagues WHERE id::text = $1`, [leagueId]);
       const leagueSettings = leagueRes.rows.length > 0
         ? (typeof leagueRes.rows[0].settings === 'string' ? JSON.parse(leagueRes.rows[0].settings) : leagueRes.rows[0].settings || {})
         : {};
+
+      const startingGw = Math.max(1, Number(leagueSettings.starting_gameweek) || 1);
+      if (startingGw > 1 && fixture.gameweek_id) {
+        const gwInfoRes = await client.query(
+          `SELECT gw.gameweek_number, c.code AS comp_code
+           FROM gameweeks gw
+           LEFT JOIN competitions c ON gw.competition_id = c.id
+           WHERE gw.id = $1 LIMIT 1`,
+          [fixture.gameweek_id]
+        );
+        if (gwInfoRes.rows.length > 0) {
+          let roundGwNum = Number(gwInfoRes.rows[0].gameweek_number);
+          const gwCompCode = String(gwInfoRes.rows[0].comp_code || 'PL').toUpperCase();
+          if (isCombinedCompetitions(leagueSettings) && gwCompCode === 'ELC') {
+            const paired = await resolvePairedGameweeks(undefined, false);
+            const offset = paired.elcGwNumber - paired.plGwNumber;
+            roundGwNum = Math.max(1, roundGwNum - offset);
+          }
+          if (roundGwNum < startingGw) {
+            throw new Error(
+              `This league starts in Gameweek ${startingGw}. Predictions open from Gameweek ${startingGw} onwards.`
+            );
+          }
+        }
+      }
 
       const allowDuplicate = leagueSettings.allow_duplicate_predictions === true;
       const matchesLimit = leagueSettings.matches_per_gameweek ?? 1;

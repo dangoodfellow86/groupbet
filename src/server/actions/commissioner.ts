@@ -2,11 +2,13 @@
 
 import { query, withTransaction } from '@/server/db/pool';
 import { getCurrentUser } from '@/server/auth/session';
+import { isCombinedCompetitions, resolveActiveGameweek } from '@/server/services/gameweek-resolver';
 
 export interface UpdateLeagueSettingsInput {
   leagueId: string;
   userId?: string;
   name?: string;
+  startingGameweek?: number;
   startingLives?: number;
   exclusiveTeamPicks?: boolean;
   exclusiveMatchClaims?: boolean;
@@ -58,8 +60,11 @@ export async function verifyCommissioner(
       l.type, 
       l.current_round,
       l.settings,
+      l.competition_id,
+      c.code AS competition_code,
       lm.role
     FROM leagues l
+    LEFT JOIN competitions c ON c.id = l.competition_id
     LEFT JOIN league_members lm ON lm.league_id = l.id AND lm.user_id::text = $2
     WHERE l.id::text = $1
     `,
@@ -100,8 +105,40 @@ export async function updateLeagueSettings(
     const currentSettings =
       typeof league.settings === 'string' ? JSON.parse(league.settings) : league.settings || {};
 
+    let validatedStartingGw: number | undefined;
+    if (input.startingGameweek !== undefined) {
+      const requestedGw = Math.floor(Number(input.startingGameweek));
+      const isCombined = isCombinedCompetitions(currentSettings);
+      const primaryCompCode = isCombined ? 'PL' : (league.competition_code || 'PL').toUpperCase();
+      const maxGameweeks = primaryCompCode === 'ELC' ? 46 : 38;
+      const currentActiveGw = await resolveActiveGameweek({
+        competitionId: league.competition_id || null,
+        competitionCode: primaryCompCode,
+        allowOverdueAutoSync: false,
+      });
+
+      // Only enforce >= currentActiveGw when changing starting_gameweek (so saving other settings on an already-started league works)
+      const existingStartGw = Number(currentSettings.starting_gameweek) || 1;
+      if (requestedGw !== existingStartGw) {
+        if (!Number.isFinite(requestedGw) || requestedGw < currentActiveGw) {
+          return {
+            success: false,
+            message: `Starting gameweek cannot be moved to a past gameweek. Please choose Gameweek ${currentActiveGw} or later.`,
+          };
+        }
+        if (requestedGw > maxGameweeks) {
+          return {
+            success: false,
+            message: `Starting gameweek cannot exceed Gameweek ${maxGameweeks}.`,
+          };
+        }
+      }
+      validatedStartingGw = requestedGw;
+    }
+
     const updatedSettings = {
       ...currentSettings,
+      ...(validatedStartingGw !== undefined && { starting_gameweek: validatedStartingGw }),
       ...(input.startingLives !== undefined && { starting_lives: Number(input.startingLives) }),
       ...(input.exclusiveTeamPicks !== undefined && { exclusive_team_picks: Boolean(input.exclusiveTeamPicks) }),
       ...(input.exclusiveMatchClaims !== undefined && { exclusive_match_claims: Boolean(input.exclusiveMatchClaims) }),

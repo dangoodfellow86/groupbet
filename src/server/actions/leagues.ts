@@ -92,13 +92,30 @@ export async function createLeague(input: CreateLeagueInput): Promise<CreateLeag
     const isPredictor = input.type === 'PREDICTOR' || input.type === 'ALL_IN_ONE';
 
     const startingLives = isLms ? (input.startingLives ?? 1) : 0;
+    const currentActiveGw = await resolveActiveGameweek({
+      competitionId,
+      competitionCode: primaryCompCode,
+      allowOverdueAutoSync: false,
+    });
+    const maxGameweeks = primaryCompCode === 'ELC' ? 46 : 38;
+
     let startingGameweek = input.startingGameweek;
-    if (!startingGameweek) {
-      startingGameweek = await resolveActiveGameweek({
-        competitionId,
-        competitionCode: primaryCompCode,
-        allowOverdueAutoSync: false,
-      });
+    if (startingGameweek === undefined || startingGameweek === null) {
+      startingGameweek = currentActiveGw;
+    } else {
+      startingGameweek = Math.floor(Number(startingGameweek));
+      if (!Number.isFinite(startingGameweek) || startingGameweek < currentActiveGw) {
+        return {
+          success: false,
+          message: `Starting gameweek cannot be in the past. Please choose Gameweek ${currentActiveGw} or a future gameweek.`,
+        };
+      }
+      if (startingGameweek > maxGameweeks) {
+        return {
+          success: false,
+          message: `Starting gameweek cannot exceed Gameweek ${maxGameweeks}.`,
+        };
+      }
     }
 
     const settings = {
@@ -393,6 +410,8 @@ export interface UserLeagueSummary {
   role: 'ADMIN' | 'MEMBER';
   creator_id?: string;
   current_round?: number;
+  starting_gameweek?: number;
+  starting_lives?: number;
   lives_remaining?: number;
   status?: string;
   points?: number;
@@ -459,6 +478,8 @@ export async function getUserLeagues(userIdOverride?: string): Promise<UserLeagu
         role: row.role,
         creator_id: row.creator_id,
         current_round: row.current_round ?? 1,
+        starting_gameweek: s.starting_gameweek ?? 1,
+        starting_lives: s.starting_lives ?? 1,
         lives_remaining: row.lives_remaining,
         status: row.lms_status,
         points: row.total_points,

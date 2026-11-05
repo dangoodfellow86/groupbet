@@ -37,14 +37,34 @@ export function CreateGameModal({
 
   // Dynamically resolve active gameweek for selected competition
   const { data: compFixturesData } = useGameweekFixtures(undefined, competitionCode);
-  const compActiveGameweek = compFixturesData?.activeGameweek ?? (competitionCode === 'ELC' ? 9 : activeGameweek);
+  const compActiveGameweek = compFixturesData?.activeGameweek ?? (competitionCode === 'ELC' ? 12 : activeGameweek);
   const maxGameweeks = competitionCode === 'ELC' ? 46 : 38;
+  const elcOffset =
+    competitionCode === 'BOTH' && compFixturesData?.pairedGameweeks
+      ? compFixturesData.pairedGameweeks.ELC - compFixturesData.pairedGameweeks.PL
+      : 4;
+
+  const activeGwFixtures = compFixturesData?.fixtures || [];
+  const startedFixturesCount = activeGwFixtures.filter(
+    (f) => f.status !== 'SCHEDULED' || new Date(f.kickoff_time).getTime() <= Date.now()
+  ).length;
+  const isCurrentGwUnderway = startedFixturesCount > 0;
+  const availableGameweeks = Array.from(
+    { length: Math.max(1, maxGameweeks - compActiveGameweek + 1) },
+    (_, idx) => compActiveGameweek + idx
+  );
 
   useEffect(() => {
     if (isOpen && compActiveGameweek) {
+      setStartingGameweek((prev) => (prev < compActiveGameweek || prev > maxGameweeks ? compActiveGameweek : prev));
+    }
+  }, [isOpen, compActiveGameweek, maxGameweeks]);
+
+  useEffect(() => {
+    if (compActiveGameweek) {
       setStartingGameweek(compActiveGameweek);
     }
-  }, [isOpen, compActiveGameweek, competitionCode]);
+  }, [competitionCode, compActiveGameweek]);
 
   if (!isOpen) return null;
 
@@ -315,59 +335,126 @@ export function CreateGameModal({
             </div>
           </div>
 
+          {/* Starting Gameweek Selector (Current or Future Only — All Game Formats) */}
+          <div className="flex flex-col gap-1.5 pt-1">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-semibold text-neutral-300 flex items-center gap-1.5">
+                <Calendar className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Starting Gameweek</span>
+              </label>
+              <span className="text-[10px] text-neutral-400">
+                Current or future gameweeks only
+              </span>
+            </div>
+
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+              <select
+                value={startingGameweek}
+                onChange={(e) => setStartingGameweek(Number(e.target.value))}
+                className="flex-1 bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2.5 text-xs font-semibold text-neutral-200 focus:outline-none focus:border-emerald-500/60 transition cursor-pointer"
+              >
+                {availableGameweeks.map((gw) => {
+                  const statusLabel =
+                    gw === compActiveGameweek
+                      ? isCurrentGwUnderway
+                        ? ' — Current (In Progress)'
+                        : ' — Current Active'
+                      : gw === compActiveGameweek + 1
+                      ? ' — Next Gameweek'
+                      : '';
+                  const pairedLabel =
+                    competitionCode === 'BOTH'
+                      ? ` (PL GW ${gw} + Champ GW ${Math.min(46, gw + elcOffset)})`
+                      : '';
+                  return (
+                    <option key={gw} value={gw}>
+                      Gameweek {gw}{pairedLabel}{statusLabel}
+                    </option>
+                  );
+                })}
+              </select>
+
+              {compActiveGameweek < maxGameweeks && (
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setStartingGameweek(compActiveGameweek)}
+                    className={`px-2.5 py-2 rounded-xl text-[11px] font-semibold border transition cursor-pointer ${
+                      startingGameweek === compActiveGameweek
+                        ? 'bg-emerald-500/15 border-emerald-500/60 text-emerald-300'
+                        : 'bg-neutral-950 border-neutral-800 text-neutral-400 hover:border-neutral-700'
+                    }`}
+                  >
+                    Current (GW {compActiveGameweek})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setStartingGameweek(compActiveGameweek + 1)}
+                    className={`px-2.5 py-2 rounded-xl text-[11px] font-semibold border transition cursor-pointer ${
+                      startingGameweek === compActiveGameweek + 1
+                        ? 'bg-amber-500/15 border-amber-500/60 text-amber-300'
+                        : 'bg-neutral-950 border-neutral-800 text-neutral-400 hover:border-neutral-700'
+                    }`}
+                  >
+                    Next (GW {compActiveGameweek + 1})
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {isCurrentGwUnderway && startingGameweek === compActiveGameweek && compActiveGameweek < maxGameweeks && (
+              <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-[11px] text-amber-300 flex items-center justify-between gap-2">
+                <span>
+                  <strong>Heads up:</strong> {startedFixturesCount} of {activeGwFixtures.length} matches in GW {compActiveGameweek} have already kicked off.
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setStartingGameweek(compActiveGameweek + 1)}
+                  className="px-2 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-200 font-bold text-[10px] whitespace-nowrap transition cursor-pointer"
+                >
+                  Start Next Week (GW {compActiveGameweek + 1})
+                </button>
+              </div>
+            )}
+
+            {startingGameweek > compActiveGameweek && (
+              <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-[11px] text-emerald-300">
+                <strong>Future Start (Gameweek {startingGameweek}):</strong> Friends can join via invite link right away and lock in their opening picks for Gameweek {startingGameweek}.
+              </div>
+            )}
+          </div>
+
           {/* Mode-Specific Rules */}
           {type !== 'PREDICTOR' ? (
             <div className="flex flex-col gap-2 pt-1">
-              <div className="grid grid-cols-2 gap-3">
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-semibold text-neutral-300 flex items-center gap-1.5">
-                    <Heart className="w-3.5 h-3.5 text-rose-400" />
-                    <span>LMS Lives</span>
-                  </label>
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setStartingLives(1)}
-                      className={`py-2 rounded-xl text-xs font-semibold border transition ${
-                        startingLives === 1
-                          ? 'bg-neutral-800 border-emerald-500 text-emerald-400'
-                          : 'bg-neutral-950 border-neutral-800 text-neutral-400'
-                      }`}
-                    >
-                      1 Life
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setStartingLives(2)}
-                      className={`py-2 rounded-xl text-xs font-semibold border transition ${
-                        startingLives === 2
-                          ? 'bg-neutral-800 border-emerald-500 text-emerald-400'
-                          : 'bg-neutral-950 border-neutral-800 text-neutral-400'
-                      }`}
-                    >
-                      2 Lives
-                    </button>
-                  </div>
-                </div>
-
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-xs font-semibold text-neutral-300 flex items-center gap-1.5">
-                    <Calendar className="w-3.5 h-3.5 text-emerald-400" />
-                    <span>Starts At</span>
-                  </label>
-                  <select
-                    value={startingGameweek}
-                    onChange={(e) => setStartingGameweek(Number(e.target.value))}
-                    className="bg-neutral-950 border border-neutral-800 rounded-xl px-3 py-2 text-xs font-medium text-neutral-200 focus:outline-none focus:border-emerald-500/60 transition"
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-semibold text-neutral-300 flex items-center gap-1.5">
+                  <Heart className="w-3.5 h-3.5 text-rose-400" />
+                  <span>LMS Starting Lives</span>
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setStartingLives(1)}
+                    className={`py-2 rounded-xl text-xs font-semibold border transition ${
+                      startingLives === 1
+                        ? 'bg-neutral-800 border-emerald-500 text-emerald-400'
+                        : 'bg-neutral-950 border-neutral-800 text-neutral-400'
+                    }`}
                   >
-                    {Array.from({ length: 6 }, (_, idx) => compActiveGameweek + idx)
-                      .filter((gw) => gw <= maxGameweeks)
-                      .map((gw) => (
-                        <option key={gw} value={gw}>
-                          Gameweek {gw} {gw === compActiveGameweek ? '(Current Active)' : ''}
-                        </option>
-                      ))}
-                  </select>
+                    1 Life (Classic)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setStartingLives(2)}
+                    className={`py-2 rounded-xl text-xs font-semibold border transition ${
+                      startingLives === 2
+                        ? 'bg-neutral-800 border-emerald-500 text-emerald-400'
+                        : 'bg-neutral-950 border-neutral-800 text-neutral-400'
+                    }`}
+                  >
+                    2 Lives (Second Chance)
+                  </button>
                 </div>
               </div>
 
@@ -415,7 +502,7 @@ export function CreateGameModal({
                 <div className="p-3 rounded-xl bg-neutral-950/70 border border-neutral-800/80 text-xs text-neutral-400 flex items-center gap-2">
                   <Sparkles className="w-4 h-4 text-emerald-400 shrink-0" />
                   <span>
-                    Includes <strong>Last Man Standing</strong> ({startingLives} {startingLives === 1 ? 'life' : 'lives'}) + weekly <strong>Predictor</strong> points (+3 exact, +1 outcome, +1 BTTS, +1 Over/Under).
+                    Starts at <strong className="text-neutral-200">Gameweek {startingGameweek}</strong>. Includes <strong>Last Man Standing</strong> ({startingLives} {startingLives === 1 ? 'life' : 'lives'}) + weekly <strong>Predictor</strong> points (+3 exact, +1 outcome, +1 BTTS, +1 Over/Under).
                   </span>
                 </div>
               )}

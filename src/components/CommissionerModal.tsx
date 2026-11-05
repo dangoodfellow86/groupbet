@@ -16,6 +16,7 @@ import {
   Sparkles,
   ChevronRight,
   RefreshCw,
+  Calendar,
 } from 'lucide-react';
 import {
   getLeagueMembersRoster,
@@ -33,7 +34,10 @@ export interface CommissionerModalProps {
   leagueType?: 'LAST_MAN_STANDING' | 'PREDICTOR';
   currentRound?: number;
   currentUserId?: string;
+  activeGameweek?: number;
+  maxGameweeks?: number;
   initialSettings?: {
+    startingGameweek?: number;
     startingLives?: number;
     allowRepeatTeams?: boolean;
     exclusiveTeamPicks?: boolean;
@@ -50,6 +54,8 @@ export function CommissionerModal({
   leagueType = 'LAST_MAN_STANDING',
   currentRound = 1,
   currentUserId,
+  activeGameweek = 8,
+  maxGameweeks = 38,
   initialSettings,
   onLeagueUpdated,
 }: CommissionerModalProps) {
@@ -57,7 +63,10 @@ export function CommissionerModal({
 
   // Form states for settings
   const [name, setName] = useState(leagueName);
-  const [startingLives, setStartingLives] = useState(initialSettings?.startingLives ?? 3);
+  const [startingGameweek, setStartingGameweek] = useState(
+    initialSettings?.startingGameweek ?? activeGameweek
+  );
+  const [startingLives, setStartingLives] = useState(initialSettings?.startingLives ?? 1);
   const [exclusiveTeamPicks, setExclusiveTeamPicks] = useState(initialSettings?.exclusiveTeamPicks ?? true);
   const [exclusiveMatchClaims, setExclusiveMatchClaims] = useState(initialSettings?.exclusiveMatchClaims ?? false);
   const [isSavingSettings, setIsSavingSettings] = useState(false);
@@ -80,7 +89,8 @@ export function CommissionerModal({
   useEffect(() => {
     if (isOpen) {
       setName(leagueName);
-      setStartingLives(initialSettings?.startingLives ?? 3);
+      setStartingGameweek(initialSettings?.startingGameweek ?? activeGameweek);
+      setStartingLives(initialSettings?.startingLives ?? 1);
       setExclusiveTeamPicks(initialSettings?.exclusiveTeamPicks ?? true);
       setExclusiveMatchClaims(initialSettings?.exclusiveMatchClaims ?? false);
       setSettingsSuccess(false);
@@ -90,7 +100,7 @@ export function CommissionerModal({
       setConfirmKickUser(null);
       loadRoster();
     }
-  }, [isOpen, leagueId, leagueName, initialSettings]);
+  }, [isOpen, leagueId, leagueName, activeGameweek, initialSettings]);
 
   async function loadRoster() {
     setIsLoadingRoster(true);
@@ -117,6 +127,7 @@ export function CommissionerModal({
       const res = await updateLeagueSettings({
         leagueId,
         name: name.trim(),
+        startingGameweek,
         startingLives,
         exclusiveTeamPicks,
         exclusiveMatchClaims,
@@ -278,6 +289,46 @@ export function CommissionerModal({
                   className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-amber-500 transition"
                   placeholder="Premier League Showdown"
                 />
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                    <Calendar className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Starting Gameweek</span>
+                  </label>
+                  <span className="text-[11px] text-amber-300/80 font-medium">
+                    Current or future gameweeks only
+                  </span>
+                </div>
+                <select
+                  value={startingGameweek}
+                  onChange={(e) => setStartingGameweek(Number(e.target.value))}
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-amber-500 transition cursor-pointer"
+                >
+                  {initialSettings?.startingGameweek &&
+                    initialSettings.startingGameweek < activeGameweek && (
+                      <option value={initialSettings.startingGameweek}>
+                        Gameweek {initialSettings.startingGameweek} (Original League Start)
+                      </option>
+                    )}
+                  {Array.from(
+                    { length: Math.max(1, maxGameweeks - activeGameweek + 1) },
+                    (_, idx) => activeGameweek + idx
+                  ).map((gw) => (
+                    <option key={gw} value={gw}>
+                      Gameweek {gw}
+                      {gw === activeGameweek
+                        ? ' (Current Active)'
+                        : gw === activeGameweek + 1
+                        ? ' (Next Gameweek)'
+                        : ''}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-slate-400 mt-1.5">
+                  Need more time for mates to join? Push the start forward to a future gameweek (past gameweeks are locked).
+                </p>
               </div>
 
               {leagueType === 'LAST_MAN_STANDING' && (

@@ -21,7 +21,6 @@ async function runTests() {
       type: 'LAST_MAN_STANDING',
       creatorDisplayName: hostName,
       creatorEmail: hostEmail,
-      startingGameweek: 5,
       startingLives: 2,
     });
 
@@ -101,7 +100,6 @@ async function runTests() {
       type: 'ALL_IN_ONE',
       creatorDisplayName: aioHostName,
       creatorEmail: aioHostEmail,
-      startingGameweek: 5,
       startingLives: 3,
       exclusiveTeamPicks: false, // Explicitly false to test traditional secret pick masking
     });
@@ -217,7 +215,6 @@ async function runTests() {
       competitionCode: 'ELC',
       creatorDisplayName: eflHostName,
       creatorEmail: eflHostEmail,
-      startingGameweek: 10,
       startingLives: 2,
     });
 
@@ -255,7 +252,6 @@ async function runTests() {
       competitionCode: 'BOTH',
       creatorDisplayName: bothHostName,
       creatorEmail: bothHostEmail,
-      startingGameweek: 8,
       startingLives: 2,
     });
 
@@ -288,6 +284,69 @@ async function runTests() {
     await query('DELETE FROM leagues WHERE id = $1', [bothCreateResult.league!.id]);
     await query('DELETE FROM users WHERE email = $1', [bothHostEmail]);
     console.log('   🧹 Cleaned up BOTH test records.');
+
+    // 10. Test Future Starting Gameweek Selection, Past Gameweek Rejection & Commissioner Amendment
+    console.log('\n10. Testing Future Starting Gameweek Selection, Past Rejection & Commissioner Amendment...');
+    const { resolveActiveGameweek } = await import('../services/gameweek-resolver');
+    const { updateLeagueSettings } = await import('./commissioner');
+    const activePlGw = await resolveActiveGameweek({ competitionCode: 'PL', allowOverdueAutoSync: false });
+    const futureHostName = `FutureHost_${Date.now()}`;
+    const futureHostEmail = `futurehost_${Date.now()}@test.com`;
+
+    if (activePlGw > 1) {
+      const pastRejectRes = await createLeague({
+        name: 'Past Start League',
+        type: 'ALL_IN_ONE',
+        competitionCode: 'PL',
+        creatorDisplayName: futureHostName,
+        creatorEmail: futureHostEmail,
+        startingGameweek: activePlGw - 1,
+      });
+      assert.equal(pastRejectRes.success, false, 'createLeague should reject past startingGameweek');
+      console.log(`   ✅ Past startingGameweek (${activePlGw - 1} < active GW ${activePlGw}) correctly rejected`);
+    }
+
+    const futureStartGw = Math.min(38, activePlGw + 2);
+    const futureCreateRes = await createLeague({
+      name: 'Future Start League',
+      type: 'PREDICTOR',
+      competitionCode: 'PL',
+      creatorDisplayName: futureHostName,
+      creatorEmail: futureHostEmail,
+      startingGameweek: futureStartGw,
+    });
+    assert.ok(futureCreateRes.success, `Future createLeague failed: ${futureCreateRes.message}`);
+
+    const futureUserLeagues = await getUserLeagues(futureCreateRes.user!.id);
+    const createdFutureLeague = futureUserLeagues.find((l) => l.id === futureCreateRes.league!.id);
+    assert.equal(createdFutureLeague?.starting_gameweek, futureStartGw, 'getUserLeagues should return starting_gameweek');
+    console.log(`   ✅ Future starting_gameweek (GW ${futureStartGw}) persisted and returned in getUserLeagues`);
+
+    if (activePlGw > 1) {
+      const amendPastRes = await updateLeagueSettings({
+        leagueId: futureCreateRes.league!.id,
+        userId: futureCreateRes.user!.id,
+        startingGameweek: activePlGw - 1,
+      });
+      assert.equal(amendPastRes.success, false, 'updateLeagueSettings should reject amending startingGameweek to past GW');
+    }
+
+    const amendedStartGw = Math.min(38, activePlGw + 3);
+    const amendFutureRes = await updateLeagueSettings({
+      leagueId: futureCreateRes.league!.id,
+      userId: futureCreateRes.user!.id,
+      startingGameweek: amendedStartGw,
+    });
+    assert.ok(amendFutureRes.success, `updateLeagueSettings failed: ${amendFutureRes.message}`);
+
+    const updatedFutureLeagues = await getUserLeagues(futureCreateRes.user!.id);
+    const updatedFutureLeague = updatedFutureLeagues.find((l) => l.id === futureCreateRes.league!.id);
+    assert.equal(updatedFutureLeague?.starting_gameweek, amendedStartGw, 'Amended starting_gameweek should be persisted');
+    console.log(`   ✅ Commissioner successfully amended starting_gameweek to GW ${amendedStartGw}`);
+
+    await query('DELETE FROM leagues WHERE id = $1', [futureCreateRes.league!.id]);
+    await query('DELETE FROM users WHERE email = $1', [futureHostEmail]);
+    console.log('   🧹 Cleaned up Future Start test records.');
 
     console.log('\n🎉 ALL LEAGUES & INVITE TESTS PASSED!\n');
   } catch (error) {

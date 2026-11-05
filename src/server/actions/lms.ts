@@ -302,8 +302,33 @@ export async function submitLmsPick(
         actualGameweekId!
       );
 
-      // 6. Enforce no-repeat-team constraint (Burned Team Rule)
+      // 6. Enforce starting_gameweek & no-repeat-team constraint (Burned Team Rule)
       const settings = typeof entry.settings === 'string' ? JSON.parse(entry.settings) : entry.settings || {};
+      const startingGw = Math.max(1, Number(settings.starting_gameweek) || 1);
+      if (startingGw > 1 && actualGameweekId) {
+        const gwInfoRes = await client.query(
+          `SELECT gw.gameweek_number, c.code AS comp_code
+           FROM gameweeks gw
+           LEFT JOIN competitions c ON gw.competition_id = c.id
+           WHERE gw.id = $1 LIMIT 1`,
+          [actualGameweekId]
+        );
+        if (gwInfoRes.rows.length > 0) {
+          let roundGwNum = Number(gwInfoRes.rows[0].gameweek_number);
+          const gwCompCode = String(gwInfoRes.rows[0].comp_code || 'PL').toUpperCase();
+          if (isCombinedCompetitions(settings) && gwCompCode === 'ELC') {
+            const paired = await resolvePairedGameweeks(undefined, false);
+            const offset = paired.elcGwNumber - paired.plGwNumber;
+            roundGwNum = Math.max(1, roundGwNum - offset);
+          }
+          if (roundGwNum < startingGw) {
+            throw new Error(
+              `This tournament starts in Gameweek ${startingGw}. Please switch to Gameweek ${startingGw} to make your opening pick.`
+            );
+          }
+        }
+      }
+
       const allowRepeatTeams = settings.allow_repeat_teams === true;
       const exclusiveTeamPicks = settings.exclusive_team_picks ?? true;
 

@@ -27,6 +27,7 @@ type FixtureItem = FixturesApiResponse['fixtures'][number];
 interface WeeklyFixturesProps {
   initialGameweek?: number;
   gameweek?: number;
+  startingGameweek?: number;
   competitionCode?: string;
   competitionName?: string;
   maxGameweeks?: number;
@@ -58,6 +59,7 @@ function formatDateGroupHeader(isoString: string): string {
 export function WeeklyFixtures({
   initialGameweek = 1,
   gameweek: controlledGameweek,
+  startingGameweek,
   competitionCode = 'PL',
   competitionName,
   maxGameweeks,
@@ -121,6 +123,8 @@ export function WeeklyFixtures({
       : null;
 
   const activeGameweek = data?.activeGameweek ?? currentGameweek;
+  const effectiveTargetGameweek = Math.max(activeGameweek, startingGameweek ?? 1);
+  const isPreStartGameweek = Boolean(startingGameweek && currentGameweek < startingGameweek);
   const isPastGameweek = currentGameweek < activeGameweek;
   const isActiveGameweek = currentGameweek === activeGameweek;
   const isFutureGameweek = currentGameweek > activeGameweek;
@@ -207,15 +211,19 @@ export function WeeklyFixtures({
 
         {/* Stepper controls */}
         <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-          {!isActiveGameweek && (
+          {currentGameweek !== effectiveTargetGameweek && (
             <button
               type="button"
-              onClick={() => handleGameweekChange(activeGameweek)}
+              onClick={() => handleGameweekChange(effectiveTargetGameweek)}
               className="flex items-center gap-1 px-2 sm:px-2.5 py-1.5 rounded-xl bg-emerald-600/15 hover:bg-emerald-600/25 border border-emerald-500/30 text-emerald-300 text-xs font-semibold transition cursor-pointer"
-              title={`Return to current active Gameweek ${activeGameweek}`}
+              title={`Return to Gameweek ${effectiveTargetGameweek}`}
             >
               <RotateCcw className="w-3 h-3" />
-              <span className="hidden md:inline">Active (GW {activeGameweek})</span>
+              <span className="hidden md:inline">
+                {effectiveTargetGameweek > activeGameweek
+                  ? `Start (GW ${effectiveTargetGameweek})`
+                  : `Active (GW ${effectiveTargetGameweek})`}
+              </span>
             </button>
           )}
 
@@ -322,6 +330,32 @@ export function WeeklyFixtures({
               PL GW {pairedGws.PL} + ELC GW {pairedGws.ELC}
             </span>
           )}
+        </div>
+      )}
+
+      {/* Pre-Start Gameweek Notice Banner */}
+      {isPreStartGameweek && startingGameweek && (
+        <div className="p-3.5 rounded-2xl bg-amber-950/30 border border-amber-500/30 text-xs text-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm animate-in fade-in duration-200">
+          <div className="flex items-center gap-2.5">
+            <div className="w-7 h-7 rounded-lg bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0">
+              <Calendar className="w-4 h-4" />
+            </div>
+            <div>
+              <span className="font-bold text-amber-200">
+                League Starts in Gameweek {startingGameweek}
+              </span>
+              <p className="text-[11px] text-amber-300/80 mt-0.5">
+                Gameweek {currentGameweek} is prior to this league&apos;s starting round. Switch to Gameweek {startingGameweek} to lock in your opening picks.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => handleGameweekChange(startingGameweek)}
+            className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-neutral-950 font-bold text-xs transition cursor-pointer self-start sm:self-auto shrink-0"
+          >
+            Go to Opening Round (GW {startingGameweek})
+          </button>
         </div>
       )}
 
@@ -536,7 +570,7 @@ export function WeeklyFixtures({
                     predictorMatchClaims={predictorMatchClaims}
                     onSelectTeam={onSelectTeam}
                     onRemoveLmsPick={onRemoveLmsPick}
-                    interactive={interactive && !isPastGameweek}
+                    interactive={interactive && !isPastGameweek && !isPreStartGameweek}
                     gameMode={gameMode}
                     userPrediction={
                       predictions[fixture.id] ||

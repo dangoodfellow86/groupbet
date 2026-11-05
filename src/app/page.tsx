@@ -101,14 +101,16 @@ export default function DashboardPage() {
   const [mobileTab, setMobileTab] = useState<MobileNavTab>('picks');
   const [desktopView, setDesktopView] = useState<'game' | 'matchday'>('game');
   const [selectedGameweekOverride, setSelectedGameweekOverride] = useState<number | null>(null);
-  const selectedGameweek = selectedGameweekOverride ?? activeGameweek;
+  const leagueStartGw = activeLeague?.starting_gameweek ?? 1;
+  const defaultLeagueGameweek = Math.max(activeGameweek, leagueStartGw);
+  const selectedGameweek = selectedGameweekOverride ?? defaultLeagueGameweek;
   const setSelectedGameweek = (gw: number) => setSelectedGameweekOverride(gw);
   const [hasCopiedInviteCode, setHasCopiedInviteCode] = useState(false);
 
-  // Reset gameweek override when switching leagues or competitions
+  // Reset gameweek override when switching leagues, competitions, or starting gameweek
   useEffect(() => {
     setSelectedGameweekOverride(null);
-  }, [activeLeague?.id, activeLeague?.competition_code]);
+  }, [activeLeague?.id, activeLeague?.competition_code, activeLeague?.starting_gameweek]);
 
   // Synchronize game mode with active league type
   useEffect(() => {
@@ -696,6 +698,11 @@ export default function DashboardPage() {
                       Round {activeLeague.current_round}
                     </span>
                   )}
+                  {leagueStartGw > activeGameweek && (
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                      Starts GW {leagueStartGw}
+                    </span>
+                  )}
                 </div>
                 <div className="text-neutral-400 text-[11px] flex items-center gap-2 mt-0.5 flex-wrap">
                   <button
@@ -848,8 +855,9 @@ export default function DashboardPage() {
           {/* Main Fixtures Column */}
           <section className="lg:col-span-8 flex flex-col gap-6">
             <WeeklyFixtures
-              initialGameweek={activeGameweek}
+              initialGameweek={defaultLeagueGameweek}
               gameweek={selectedGameweek}
+              startingGameweek={leagueStartGw}
               competitionCode={activeCompCode}
               competitionName={activeCompName}
               maxGameweeks={maxGameweeks}
@@ -954,8 +962,9 @@ export default function DashboardPage() {
           {/* Tab 1: Picks */}
           {mobileTab === 'picks' && (
             <WeeklyFixtures
-              initialGameweek={activeGameweek}
+              initialGameweek={defaultLeagueGameweek}
               gameweek={selectedGameweek}
+              startingGameweek={leagueStartGw}
               competitionCode={activeCompCode}
               competitionName={activeCompName}
               maxGameweeks={maxGameweeks}
@@ -1032,8 +1041,9 @@ export default function DashboardPage() {
           {mobileTab === 'matchday' && (
             <div className="flex flex-col gap-5">
               <WeeklyFixtures
-                initialGameweek={activeGameweek}
+                initialGameweek={defaultLeagueGameweek}
                 gameweek={selectedGameweek}
+                startingGameweek={leagueStartGw}
                 competitionCode={activeCompCode}
                 competitionName={activeCompName}
                 maxGameweeks={maxGameweeks}
@@ -1299,6 +1309,14 @@ export default function DashboardPage() {
           leagueType={activeLeague.type === 'ALL_IN_ONE' ? 'LAST_MAN_STANDING' : activeLeague.type}
           currentRound={activeLeague.current_round || 1}
           currentUserId={user?.id}
+          activeGameweek={activeGameweek}
+          maxGameweeks={maxGameweeks}
+          initialSettings={{
+            startingGameweek: activeLeague.starting_gameweek ?? activeGameweek,
+            startingLives: activeLeague.starting_lives ?? 1,
+            exclusiveTeamPicks: activeLeague.exclusive_team_picks ?? true,
+            exclusiveMatchClaims: activeLeague.allow_duplicate_predictions === false,
+          }}
           onLeagueUpdated={() => {
             refetchSession();
             queryClient.invalidateQueries({ queryKey: ['survivor-board'] });
