@@ -125,7 +125,7 @@ export function SiteFooter({
           <p className="font-mono text-[10px] text-neutral-600 flex items-center gap-1 flex-wrap">
             <span>Powered by Football-Data.org</span>
             <span>•</span>
-            <span>Not affiliated with the Premier League</span>
+            <span>Not affiliated with the Premier League or EFL</span>
           </p>
         </div>
       </div>

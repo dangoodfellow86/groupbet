@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { query } from '../db/pool';
 import { createLeague } from './leagues';
-import { getPlayerCareerStats, updateUserProfile, getPremierLeagueClubBadges } from './profile';
+import { getPlayerCareerStats, updateUserProfile, getPremierLeagueClubBadges, deleteOwnAccount } from './profile';
 
 async function runTests() {
   console.log('🧪 Starting Player Profile & Trophy Cabinet Test Suite...\n');
@@ -151,15 +151,17 @@ async function runTests() {
     assert.ok(sampleClub.crestUrl, 'Club should have crest URL');
     console.log(`   ✅ getPremierLeagueClubBadges returned ${badgesRes.clubs.length} official club crests`);
 
-    // 8. Cleanup
-    console.log('\n8. Cleaning up test records...');
-    await query(`DELETE FROM lms_picks WHERE entry_id = $1`, [entryId]);
-    await query(`DELETE FROM lms_entries WHERE league_id = $1`, [leagueId]);
-    await query(`DELETE FROM predictor_leaderboard WHERE league_id = $1`, [leagueId]);
-    await query(`DELETE FROM league_members WHERE league_id = $1`, [leagueId]);
-    await query(`DELETE FROM leagues WHERE id = $1`, [leagueId]);
-    await query(`DELETE FROM users WHERE id = $1`, [hostId]);
-    console.log('   🧹 Test data cleaned up.');
+    // 8. Test deleteOwnAccount (UK GDPR Right to Erasure)
+    console.log('\n8. Testing deleteOwnAccount (UK GDPR Right to Erasure)...');
+    const delRes = await deleteOwnAccount(hostId);
+    assert.ok(delRes.success, `deleteOwnAccount failed: ${delRes.message}`);
+
+    const userAfterDel = await query(`SELECT id FROM users WHERE id = $1`, [hostId]);
+    assert.equal(userAfterDel.rows.length, 0, 'User row should be permanently deleted');
+
+    const leagueAfterDel = await query(`SELECT id FROM leagues WHERE id = $1`, [leagueId]);
+    assert.equal(leagueAfterDel.rows.length, 0, 'Solo league founded by deleted user should be deleted');
+    console.log('   ✅ deleteOwnAccount permanently erased user, entries, picks, and solo league.');
 
     console.log('\n✨ All Player Profile & Avatar Studio Tests Passed successfully!\n');
   } catch (err) {

@@ -27,6 +27,7 @@ import { RulesModal, RulesTab } from '@/components/rules/RulesModal';
 import { OnboardingModal, hasSeenOnboarding } from '@/components/onboarding/OnboardingModal';
 import { FeedbackModal } from '@/components/FeedbackModal';
 import { PwaInstallModal, PwaInstallBanner, usePwaInstall } from '@/components/PwaInstallModal';
+import { CookieNoticeBanner } from '@/components/CookieNoticeBanner';
 import { StandingsShareItem } from '@/lib/sharing';
 import { useUserSession } from '@/hooks/useUserSession';
 import { useMatchdayRealtime } from '@/hooks/useMatchdayRealtime';
@@ -187,6 +188,15 @@ export default function DashboardPage() {
       }
     }
   }, []);
+
+  const canUseSimulator =
+    process.env.NODE_ENV !== 'production' ||
+    Boolean(
+      user?.email &&
+        ['dangoodfellow86@gmail.com', 'support@squadpicks.co.uk'].includes(
+          user.email.trim().toLowerCase()
+        )
+    );
 
   const requireAuth = (title: string, subtitle: string, mode: 'signin' | 'signup' = 'signup') => {
     setAuthPrompt({ title, subtitle });
@@ -542,16 +552,18 @@ export default function DashboardPage() {
               </span>
             </div>
 
-            {/* Live Match Simulator Button (desktop only, accessible on mobile via League tab) */}
-            <button
-              type="button"
-              onClick={() => setIsSimulatorOpen(true)}
-              className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-300 text-xs font-bold transition shadow-sm cursor-pointer"
-              title="Open Matchday Simulator"
-            >
-              <Zap className="w-3.5 h-3.5 fill-current" />
-              <span>Simulator</span>
-            </button>
+            {/* Live Match Simulator Button (Admin / Dev only) */}
+            {canUseSimulator && (
+              <button
+                type="button"
+                onClick={() => setIsSimulatorOpen(true)}
+                className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-300 text-xs font-bold transition shadow-sm cursor-pointer"
+                title="Open Matchday Simulator"
+              >
+                <Zap className="w-3.5 h-3.5 fill-current" />
+                <span>Simulator</span>
+              </button>
+            )}
 
             {/* New Game Button (desktop only, accessible on mobile via League tab) */}
             <button
@@ -1129,14 +1141,16 @@ export default function DashboardPage() {
                       </button>
                     )}
 
-                    <button
-                      type="button"
-                      onClick={() => setIsSimulatorOpen(true)}
-                      className="w-full min-h-[40px] flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 text-amber-300 text-xs font-bold transition cursor-pointer"
-                    >
-                      <Zap className="w-4 h-4 fill-current" />
-                      <span>Launch Matchday Simulator</span>
-                    </button>
+                    {canUseSimulator && (
+                      <button
+                        type="button"
+                        onClick={() => setIsSimulatorOpen(true)}
+                        className="w-full min-h-[40px] flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 text-amber-300 text-xs font-bold transition cursor-pointer"
+                      >
+                        <Zap className="w-4 h-4 fill-current" />
+                        <span>Launch Matchday Simulator</span>
+                      </button>
+                    )}
                   </div>
                 </div>
               ) : (
@@ -1272,11 +1286,13 @@ export default function DashboardPage() {
       />
 
       {/* Developer Match Simulator Modal */}
-      <SimulatorModal
-        isOpen={isSimulatorOpen}
-        onClose={() => setIsSimulatorOpen(false)}
-        defaultGameweek={selectedGameweek}
-      />
+      {canUseSimulator && (
+        <SimulatorModal
+          isOpen={isSimulatorOpen}
+          onClose={() => setIsSimulatorOpen(false)}
+          defaultGameweek={selectedGameweek}
+        />
+      )}
 
       {/* League Pick Matrix & History Modal */}
       {activeLeague && (
@@ -1400,6 +1416,14 @@ export default function DashboardPage() {
         isStandalone={isStandalone}
         canNativePrompt={canNativePrompt}
         onTriggerNativeInstall={triggerNativeInstall}
+      />
+
+      {/* Essential Cookie & Free-to-Play Notice Banner */}
+      <CookieNoticeBanner
+        onOpenLegal={(tab) => {
+          setLegalModalTab(tab);
+          setIsLegalModalOpen(true);
+        }}
       />
 
       {/* Persistent Site Footer */}

@@ -7,6 +7,7 @@ import {
   TrophyBadge,
   PlayerTournamentItem,
   updateUserProfile,
+  deleteOwnAccount,
   getPremierLeagueClubBadges,
   ClubBadgeItem,
 } from '@/server/actions/profile';
@@ -34,6 +35,7 @@ import {
   AlertCircle,
   Dices,
   Image as ImageIcon,
+  Trash2,
 } from 'lucide-react';
 
 interface ProfileModalProps {
@@ -136,6 +138,9 @@ export function ProfileModal({
   const [isUploading, setIsUploading] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteConfirmInput, setDeleteConfirmInput] = useState('');
+  const [isDeleting, setIsDeleting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Query Career Stats
@@ -926,7 +931,7 @@ export function ProfileModal({
               <button
                 type="button"
                 onClick={() => setActiveTab('overview')}
-                disabled={isSaving}
+                disabled={isSaving || isDeleting}
                 className="px-4 py-2.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-300 text-xs font-semibold transition cursor-pointer disabled:opacity-50"
               >
                 Cancel
@@ -934,7 +939,7 @@ export function ProfileModal({
               <button
                 type="button"
                 onClick={handleSaveProfile}
-                disabled={isSaving}
+                disabled={isSaving || isDeleting}
                 className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition shadow-md shadow-emerald-950/50 cursor-pointer disabled:opacity-50"
               >
                 {isSaving ? (
@@ -949,6 +954,105 @@ export function ProfileModal({
                   </>
                 )}
               </button>
+            </div>
+
+            {/* UK GDPR Danger Zone: Self-Service Account Deletion */}
+            <div className="pt-4 border-t border-neutral-800/80">
+              {!showDeleteConfirm ? (
+                <div className="flex items-center justify-between gap-3 p-3 rounded-2xl bg-neutral-950/60 border border-neutral-800/80">
+                  <div>
+                    <span className="text-xs font-semibold text-neutral-300 block">
+                      Account &amp; Privacy Controls
+                    </span>
+                    <span className="text-[11px] text-neutral-500">
+                      Permanently delete your profile, picks, and personal data (UK GDPR Right to Erasure).
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowDeleteConfirm(true);
+                      setDeleteConfirmInput('');
+                    }}
+                    className="px-3 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-400 text-xs font-semibold transition cursor-pointer shrink-0 flex items-center gap-1.5"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Delete Account</span>
+                  </button>
+                </div>
+              ) : (
+                <div className="p-4 rounded-2xl bg-rose-950/25 border border-rose-500/40 flex flex-col gap-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <span className="text-xs font-bold text-rose-300 flex items-center gap-1.5">
+                        <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+                        <span>Permanently Delete Account?</span>
+                      </span>
+                      <p className="text-[11px] text-neutral-400 mt-1 leading-relaxed">
+                        This action cannot be undone. All of your predictions, LMS entries, and profile data will be permanently erased. Type <strong className="text-rose-300 font-mono">DELETE</strong> below to confirm.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                    <input
+                      type="text"
+                      value={deleteConfirmInput}
+                      onChange={(e) => setDeleteConfirmInput(e.target.value)}
+                      placeholder="Type DELETE to confirm"
+                      className="flex-1 bg-neutral-950 border border-rose-500/40 rounded-xl px-3 py-2 text-xs text-neutral-100 placeholder:text-neutral-600 focus:outline-none focus:border-rose-500 font-mono"
+                    />
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowDeleteConfirm(false);
+                          setDeleteConfirmInput('');
+                        }}
+                        disabled={isDeleting}
+                        className="px-3 py-2 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-300 text-xs font-semibold transition cursor-pointer"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        disabled={deleteConfirmInput.trim().toUpperCase() !== 'DELETE' || isDeleting}
+                        onClick={async () => {
+                          setIsDeleting(true);
+                          setSaveError(null);
+                          try {
+                            const res = await deleteOwnAccount(user?.id);
+                            if (res.success) {
+                              if (typeof window !== 'undefined') {
+                                localStorage.removeItem('gb_active_league_id');
+                                window.location.reload();
+                              }
+                            } else {
+                              setSaveError(res.message);
+                              setIsDeleting(false);
+                            }
+                          } catch (err: any) {
+                            setSaveError(err?.message || 'Failed to delete account');
+                            setIsDeleting(false);
+                          }
+                        }}
+                        className="px-3.5 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 disabled:opacity-40 text-white text-xs font-bold transition cursor-pointer flex items-center gap-1.5"
+                      >
+                        {isDeleting ? (
+                          <>
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            <span>Deleting...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Trash2 className="w-3.5 h-3.5" />
+                            <span>Confirm Delete</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}

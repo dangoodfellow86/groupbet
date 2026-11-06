@@ -1,6 +1,43 @@
 'use server';
 
 import { query, withTransaction } from '@/server/db/pool';
+import { getCurrentUser } from '@/server/auth/session';
+
+const DEFAULT_ADMIN_EMAILS = ['dangoodfellow86@gmail.com', 'support@squadpicks.co.uk'];
+
+async function verifySimulatorAccess(): Promise<{ allowed: boolean; message?: string }> {
+  if (process.env.NODE_ENV !== 'production') {
+    return { allowed: true };
+  }
+
+  try {
+    const user = await getCurrentUser();
+    const userEmail = user?.email?.trim().toLowerCase();
+    if (!userEmail) {
+      return {
+        allowed: false,
+        message: 'Unauthorized: Matchday Simulator is restricted to platform administrators in production.',
+      };
+    }
+
+    const configuredAdmins = (process.env.ADMIN_EMAILS || '')
+      .split(',')
+      .map((e) => e.trim().toLowerCase())
+      .filter(Boolean);
+    const allowedEmails = new Set([...DEFAULT_ADMIN_EMAILS, ...configuredAdmins]);
+
+    if (allowedEmails.has(userEmail)) {
+      return { allowed: true };
+    }
+  } catch {
+    // Fall through to unauthorized
+  }
+
+  return {
+    allowed: false,
+    message: 'Unauthorized: Matchday Simulator is restricted to platform administrators in production.',
+  };
+}
 
 export interface SimulateFixtureInput {
   fixtureId: string;
@@ -20,6 +57,10 @@ export interface SimulatorResponse {
  */
 export async function simulateFixtureLive(input: SimulateFixtureInput): Promise<SimulatorResponse> {
   try {
+    const access = await verifySimulatorAccess();
+    if (!access.allowed) {
+      return { success: false, message: access.message! };
+    }
     const { fixtureId, homeScore, awayScore } = input;
 
     await withTransaction(async (client) => {
@@ -61,6 +102,10 @@ export async function simulateFixtureLive(input: SimulateFixtureInput): Promise<
  */
 export async function simulateFixtureFinished(input: SimulateFixtureInput): Promise<SimulatorResponse> {
   try {
+    const access = await verifySimulatorAccess();
+    if (!access.allowed) {
+      return { success: false, message: access.message! };
+    }
     const { fixtureId, homeScore, awayScore } = input;
 
     await withTransaction(async (client) => {
@@ -102,6 +147,10 @@ export async function simulateFixtureFinished(input: SimulateFixtureInput): Prom
  */
 export async function resetFixture(fixtureId: string): Promise<SimulatorResponse> {
   try {
+    const access = await verifySimulatorAccess();
+    if (!access.allowed) {
+      return { success: false, message: access.message! };
+    }
     await withTransaction(async (client) => {
       const fixCheck = await client.query(
         `SELECT id FROM fixtures WHERE id::text = $1 OR external_id::text = $1`,
@@ -150,6 +199,10 @@ const REALISTIC_SCORES: [number, number][] = [
  */
 export async function simulateEntireGameweek(gameweekNumber: number): Promise<SimulatorResponse> {
   try {
+    const access = await verifySimulatorAccess();
+    if (!access.allowed) {
+      return { success: false, message: access.message! };
+    }
     const res = await withTransaction(async (client) => {
       const fixRes = await client.query(
         `
@@ -197,6 +250,10 @@ export async function simulateEntireGameweek(gameweekNumber: number): Promise<Si
  */
 export async function resetEntireGameweek(gameweekNumber: number): Promise<SimulatorResponse> {
   try {
+    const access = await verifySimulatorAccess();
+    if (!access.allowed) {
+      return { success: false, message: access.message! };
+    }
     await query(`SELECT revert_gameweek($1)`, [gameweekNumber]);
     return {
       success: true,

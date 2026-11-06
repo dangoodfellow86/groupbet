@@ -149,7 +149,7 @@ export function LegalContent({ section }: LegalContentProps) {
               <strong className="text-neutral-200">Supabase Inc.:</strong> Managed PostgreSQL database hosting, user authentication, and secure cloud storage for custom avatar pictures (`avatars` bucket).
             </li>
             <li>
-              <strong className="text-neutral-200">Football-Data.org:</strong> Sports data provider for Premier League match fixture schedules, live scores, and official standings. No personal player data is transmitted to Football-Data.org.
+              <strong className="text-neutral-200">Football-Data.org:</strong> Sports data provider for Premier League and EFL Championship match fixture schedules, live scores, and official standings. No personal player data is transmitted to Football-Data.org.
             </li>
             <li>
               <strong className="text-neutral-200">Cloud Hosting & CDN (e.g. Vercel):</strong> Application deployment and content delivery network infrastructure with edge security.
@@ -164,7 +164,7 @@ export function LegalContent({ section }: LegalContentProps) {
             <h4>Data Retention & Account Deletion</h4>
           </div>
           <p>
-            We retain player account data and game history for as long as your account remains active or as needed to maintain group tournament leaderboards for the season. You may at any time request the complete deletion of your account, picks, and uploaded avatar images by emailing <a href="mailto:support@squadpicks.co.uk" className="text-emerald-400 hover:underline">support@squadpicks.co.uk</a>. Upon verified request, all personal data is permanently deleted from our primary database within 30 days.
+            We retain player account data and game history for as long as your account remains active or as needed to maintain group tournament leaderboards for the season. You may at any time permanently delete your account, picks, and profile data directly inside the app via <strong className="text-neutral-200">Profile &rarr; Edit Profile &rarr; Delete Account</strong>, or by emailing <a href="mailto:support@squadpicks.co.uk" className="text-emerald-400 hover:underline">support@squadpicks.co.uk</a>. Upon verified request, all personal data is permanently deleted from our primary database within 30 days.
           </p>
         </section>
 
@@ -280,7 +280,7 @@ export function LegalContent({ section }: LegalContentProps) {
           <h4>Description of the Service</h4>
         </div>
         <p>
-          SquadPicks provides automated management tools for Premier League football games, including:
+          SquadPicks provides automated management tools for Premier League, EFL Championship, and combined multi-competition football games, including:
         </p>
         <ul className="list-disc pl-5 space-y-1.5 text-xs sm:text-sm text-neutral-400">
           <li>
@@ -334,7 +334,7 @@ export function LegalContent({ section }: LegalContentProps) {
         </div>
         <div className="p-3.5 rounded-xl bg-neutral-900 border border-neutral-800 space-y-2 text-xs text-neutral-400">
           <p>
-            <strong className="text-neutral-200">Premier League Disclaimer:</strong> SquadPicks is an independent website and is NOT affiliated with, sponsored by, or endorsed by The Football Association Premier League Ltd (&quot;Premier League&quot;) or any of its constituent football clubs.
+            <strong className="text-neutral-200">Premier League &amp; EFL Disclaimer:</strong> SquadPicks is an independent website and is NOT affiliated with, sponsored by, or endorsed by The Football Association Premier League Ltd (&quot;Premier League&quot;), The Football League Limited (&quot;EFL&quot; / &quot;Sky Bet Championship&quot;), or any of their constituent football clubs.
           </p>
           <p>
             All football team names, club badges, crests, logos, and competition titles are the registered trademarks and copyright of their respective owners. Their presence on SquadPicks is used solely under nominative fair use for descriptive and identification purposes in connection with social match predictions.

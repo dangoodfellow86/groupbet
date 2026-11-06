@@ -1,6 +1,6 @@
 'use server';
 
-import { query } from '@/server/db/pool';
+import { query, withTransaction } from '@/server/db/pool';
 import { getCurrentUser } from '@/server/auth/session';
 import { User } from '@/core/types/database';
 
@@ -475,4 +475,99 @@ export async function getPremierLeagueClubBadges(): Promise<{
     return { success: false, clubs: [] };
   }
 }
+
+/**
+ * Server Action: Permanently delete the current user's account and personal data (UK GDPR Right to Erasure).
+ * - If the user founded a league that has other members, transfers commissioner ownership to the next earliest member.
+ * - If the user is the sole member of a league they founded, deletes that league.
+ * - Cascades deletion of picks, entries, memberships, and user record, then clears auth & session cookies.
+ */
+export async function deleteOwnAccount(
+  userIdOverride?: string
+): Promise<{ success: boolean; message: string }> {
+  try {
+    let sessionUser: User | null = null;
+    if (userIdOverride) {
+      const res = await query(
+        `SELECT id, auth_id, display_name, email, avatar_url FROM users WHERE id::text = $1`,
+        [userIdOverride]
+      );
+      sessionUser = (res.rows[0] as User) || null;
+    } else {
+      sessionUser = await getCurrentUser();
+    }
+
+    if (!sessionUser) {
+      return { success: false, message: 'No active account found to delete.' };
+    }
+
+    const targetUserId = sessionUser.id;
+
+    await withTransaction(async (client) => {
+      // 1. Handle leagues created by this user (due to ON DELETE RESTRICT on leagues.creator_id)
+      const createdLeaguesRes = await client.query(
+        `SELECT id FROM leagues WHERE creator_id = $1`,
+        [targetUserId]
+      );
+
+      for (const leagueRow of createdLeaguesRes.rows) {
+        const nextOwnerRes = await client.query(
+          `SELECT user_id FROM league_members
+           WHERE league_id = $1 AND user_id != $2
+           ORDER BY (role = 'ADMIN') DESC, joined_at ASC
+           LIMIT 1`,
+          [leagueRow.id, targetUserId]
+        );
+
+        if (nextOwnerRes.rows.length > 0) {
+          const nextOwnerId = nextOwnerRes.rows[0].user_id;
+          await client.query(
+            `UPDATE leagues SET creator_id = $1, updated_at = NOW() WHERE id = $2`,
+            [nextOwnerId, leagueRow.id]
+          );
+          await client.query(
+            `UPDATE league_members SET role = 'ADMIN' WHERE league_id = $1 AND user_id = $2`,
+            [leagueRow.id, nextOwnerId]
+          );
+        } else {
+          await client.query(`DELETE FROM leagues WHERE id = $1`, [leagueRow.id]);
+        }
+      }
+
+      // 2. Delete user row (cascades league_members, lms_entries, lms_picks, predictor_picks, predictor_leaderboard, feedback_submissions)
+      await client.query(`DELETE FROM users WHERE id = $1`, [targetUserId]);
+    });
+
+    // 4. Sign out of Supabase Auth and clear first-party session cookies
+    try {
+      const { createClient } = await import('@/lib/supabase/server');
+      const supabase = await createClient();
+      await supabase.auth.signOut();
+    } catch {
+      // Non-blocking outside request context
+    }
+
+    try {
+      const { cookies } = await import('next/headers');
+      const { USER_ID_COOKIE, USER_NAME_COOKIE } = await import('@/server/auth/session');
+      const cookieStore = await cookies();
+      cookieStore.delete(USER_ID_COOKIE);
+      cookieStore.delete(USER_NAME_COOKIE);
+    } catch {
+      // Non-blocking outside request context
+    }
+
+    return {
+      success: true,
+      message: 'Your account and personal data have been permanently deleted.',
+    };
+  } catch (err: any) {
+    console.error('[deleteOwnAccount] Error:', err);
+    return {
+      success: false,
+      message: err?.message || 'Failed to delete account. Please contact support@squadpicks.co.uk.',
+    };
+  }
+}
+
 
