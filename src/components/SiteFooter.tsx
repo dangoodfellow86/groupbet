@@ -31,6 +31,17 @@ export function SiteFooter({
     }
   };
 
+  const handleRulesClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
+    // If command/ctrl or middle click, allow opening in new tab naturally
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) {
+      return;
+    }
+    if (onOpenRules) {
+      e.preventDefault();
+      onOpenRules('lms');
+    }
+  };
+
   return (
     <footer
       className={`bg-brand-950 text-neutral-400 text-xs ${
@@ -52,18 +63,14 @@ export function SiteFooter({
 
           {/* Navigation & Legal Links */}
           <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs font-medium">
-            {onOpenRules && (
-              <>
-                <button
-                  type="button"
-                  onClick={() => onOpenRules('lms')}
-                  className="text-neutral-400 hover:text-emerald-400 transition cursor-pointer"
-                >
-                  How to Play
-                </button>
-                <span className="text-neutral-700">•</span>
-              </>
-            )}
+            <Link
+              href="/rules"
+              onClick={handleRulesClick}
+              className="text-neutral-400 hover:text-emerald-400 transition cursor-pointer"
+            >
+              How to Play &amp; Rules
+            </Link>
+            <span className="text-neutral-700">•</span>
             {onOpenFeedback && (
               <>
                 <button

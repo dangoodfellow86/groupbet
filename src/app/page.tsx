@@ -28,6 +28,7 @@ import { OnboardingModal, hasSeenOnboarding } from '@/components/onboarding/Onbo
 import { FeedbackModal } from '@/components/FeedbackModal';
 import { PwaInstallModal, PwaInstallBanner, usePwaInstall } from '@/components/PwaInstallModal';
 import { CookieNoticeBanner } from '@/components/CookieNoticeBanner';
+import { LandingSeoSection } from '@/components/landing/LandingSeoSection';
 import { StandingsShareItem } from '@/lib/sharing';
 import { useUserSession } from '@/hooks/useUserSession';
 import { useMatchdayRealtime } from '@/hooks/useMatchdayRealtime';
@@ -639,45 +640,16 @@ export default function DashboardPage() {
           />
         )}
 
-        {/* Welcome Callout if No Leagues Joined Yet */}
+        {/* Welcome Callout / Landing SEO Experience if No Leagues Joined Yet */}
         {leagues.length === 0 ? (
-          <div className="mb-8 p-6 sm:p-8 rounded-3xl bg-gradient-to-br from-neutral-900 via-neutral-900/90 to-emerald-950/40 border border-emerald-500/20 shadow-2xl flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-            <div className="flex flex-col gap-2 max-w-xl">
-              <div className="flex items-center gap-2">
-                <span className="text-[11px] uppercase font-mono px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold">
-                  Premier League Season
-                </span>
-                <span className="text-xs text-neutral-400 flex items-center gap-1">
-                  <Sparkles className="w-3.5 h-3.5 text-emerald-400" /> Play with mates
-                </span>
-              </div>
-              <h2 className="text-xl sm:text-2xl font-black tracking-tight text-neutral-100">
-                Start a Last Man Standing or Match Predictor game.
-              </h2>
-              <p className="text-xs sm:text-sm text-neutral-400 leading-relaxed">
-                Create a private pool in 10 seconds, share the invite link on WhatsApp, and compete with your friends week-in, week-out!
-              </p>
-            </div>
-
-            <div className="flex items-center gap-3 shrink-0 flex-wrap">
-              <button
-                type="button"
-                onClick={handleCreateGameClick}
-                className="px-5 py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs sm:text-sm transition flex items-center gap-2 shadow-xl shadow-emerald-950/60"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Create Game</span>
-              </button>
-              <button
-                type="button"
-                onClick={handleJoinCodeClick}
-                className="px-4 py-3 rounded-2xl bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-neutral-200 font-semibold text-xs sm:text-sm transition flex items-center gap-2"
-              >
-                <KeyRound className="w-4 h-4 text-neutral-400" />
-                <span>Join with Code</span>
-              </button>
-            </div>
-          </div>
+          <LandingSeoSection
+            onCreateGame={handleCreateGameClick}
+            onJoinCode={handleJoinCodeClick}
+            onOpenRules={() => {
+              setRulesModalTab('lms');
+              setIsRulesModalOpen(true);
+            }}
+          />
         ) : (
           <div className="mb-6 p-3 sm:p-4 rounded-2xl bg-neutral-900/80 border border-neutral-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
             <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
