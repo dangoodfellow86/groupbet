@@ -4,6 +4,7 @@ import React from 'react';
 import Link from 'next/link';
 import { SquadPicksLogo } from '@/components/SquadPicksLogo';
 import { ShieldCheck, Mail, MessageSquarePlus } from 'lucide-react';
+import { InstagramIcon } from '@/components/icons/InstagramIcon';
 
 export interface SiteFooterProps {
   onOpenLegal?: (tab: 'terms' | 'privacy') => void;
@@ -99,6 +100,17 @@ export function SiteFooter({
             >
               Privacy Policy
             </Link>
+            <span className="text-neutral-700">•</span>
+            <a
+              href="https://www.instagram.com/squad.picks/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 text-neutral-400 hover:text-pink-400 transition"
+              title="Follow @squad.picks on Instagram"
+            >
+              <InstagramIcon className="w-3.5 h-3.5" />
+              <span>@squad.picks</span>
+            </a>
             <span className="text-neutral-700">•</span>
             <a
               href="mailto:support@squadpicks.co.uk"

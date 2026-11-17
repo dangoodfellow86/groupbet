@@ -17,6 +17,7 @@ import {
   CheckCircle2,
   Flame,
 } from 'lucide-react';
+import { InstagramIcon } from '@/components/icons/InstagramIcon';
 
 export interface LandingSeoSectionProps {
   onCreateGame: () => void;
@@ -242,6 +243,40 @@ export function LandingSeoSection({
           })}
         </div>
       </section>
+
+      {/* Instagram Community Banner */}
+      <div className="p-5 sm:p-6 rounded-3xl bg-gradient-to-r from-neutral-900 via-neutral-900/90 to-pink-950/20 border border-neutral-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-3.5">
+          <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-amber-500 via-rose-500 to-purple-600 p-[1.5px] shrink-0 shadow-lg shadow-rose-950/50">
+            <div className="w-full h-full bg-neutral-950 rounded-[14px] flex items-center justify-center text-pink-400">
+              <InstagramIcon className="w-6 h-6" />
+            </div>
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className="text-sm sm:text-base font-bold text-neutral-100">
+                Follow SquadPicks on Instagram
+              </h3>
+              <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-pink-500/10 text-pink-400 border border-pink-500/20">
+                @squad.picks
+              </span>
+            </div>
+            <p className="text-xs text-neutral-400 mt-0.5">
+              Weekly Premier League banker picks, Last Man Standing heartbreak reels &amp; group chat banter.
+            </p>
+          </div>
+        </div>
+
+        <a
+          href="https://www.instagram.com/squad.picks/"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="px-4 py-2.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-xs font-bold text-neutral-200 hover:text-white transition flex items-center gap-2 shrink-0 self-start sm:self-auto shadow-sm"
+        >
+          <span>Watch Reels</span>
+          <span aria-hidden="true">&rarr;</span>
+        </a>
+      </div>
     </div>
   );
 }

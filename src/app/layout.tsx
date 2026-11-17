@@ -113,8 +113,7 @@ const jsonLd = {
       url: 'https://www.squadpicks.co.uk',
       logo: 'https://www.squadpicks.co.uk/icon-512x512.png',
       sameAs: [
-        'https://instagram.com/squadpicks',
-        'https://tiktok.com/@squadpicks',
+        'https://www.instagram.com/squad.picks/',
       ],
     },
     {

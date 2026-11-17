@@ -20,6 +20,7 @@ import {
   MessageSquarePlus,
   Download,
 } from 'lucide-react';
+import { InstagramIcon } from '@/components/icons/InstagramIcon';
 
 interface UserProfileMenuProps {
   user: User | null;
@@ -244,6 +245,17 @@ export function UserProfileMenu({
                 <span>Share Feedback &amp; Support</span>
               </button>
             )}
+
+            <a
+              href="https://www.instagram.com/squad.picks/"
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => setIsOpen(false)}
+              className="w-full px-3 py-2 rounded-lg text-xs text-neutral-300 hover:text-neutral-100 hover:bg-neutral-800 transition flex items-center gap-2 text-left"
+            >
+              <InstagramIcon className="w-3.5 h-3.5 text-pink-400" />
+              <span>Instagram (@squad.picks)</span>
+            </a>
 
             {showInstallApp && onOpenInstallApp && (
               <button
