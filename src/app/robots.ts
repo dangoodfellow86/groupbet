@@ -6,7 +6,7 @@ export default function robots(): MetadataRoute.Robots {
   return {
     rules: {
       userAgent: '*',
-      allow: ['/', '/rules', '/terms', '/privacy', '/join/'],
+      allow: ['/', '/rules', '/terms', '/privacy', '/policy', '/join/'],
       disallow: ['/api/'],
     },
     sitemap: `${baseUrl}/sitemap.xml`,

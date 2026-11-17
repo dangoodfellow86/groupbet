@@ -9,11 +9,17 @@ import { SiteFooter } from '@/components/SiteFooter';
 export const metadata: Metadata = {
   title: 'Privacy Policy | SquadPicks',
   description:
-    'SquadPicks Privacy Policy. Understand how we protect your information, our essential session cookies, and your rights under UK GDPR and Data Protection Act 2018.',
+    'SquadPicks Privacy Policy and Google API User Data Policy. Learn how we safeguard your data, our strictly essential cookies, and your rights under UK GDPR.',
+  alternates: {
+    canonical: 'https://www.squadpicks.co.uk/privacy',
+  },
   openGraph: {
     title: 'Privacy Policy | SquadPicks',
-    description: 'SquadPicks Privacy Policy and UK GDPR compliance documentation.',
+    description: 'SquadPicks Privacy Policy, Google API User Data compliance, and UK GDPR documentation.',
     url: 'https://www.squadpicks.co.uk/privacy',
+    siteName: 'SquadPicks',
+    locale: 'en_GB',
+    type: 'website',
   },
 };
 

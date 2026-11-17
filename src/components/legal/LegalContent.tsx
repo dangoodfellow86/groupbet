@@ -209,10 +209,104 @@ export function LegalContent({ section }: LegalContentProps) {
           </p>
         </section>
 
-        {/* 9. Children's Privacy */}
-        <section className="space-y-2">
+        {/* 9. Google API Services User Data Policy & Limited Use Disclosure */}
+        <section className="space-y-3">
           <div className="flex items-center gap-2 text-neutral-100 font-bold text-base">
             <span className="w-6 h-6 rounded-lg bg-neutral-800 text-neutral-300 flex items-center justify-center text-xs font-mono">9</span>
+            <h4>Google API Services User Data Policy &amp; Limited Use Disclosure</h4>
+          </div>
+          <p>
+            SquadPicks allows users to sign in and authenticate using their Google Account via Google OAuth 2.0. We are committed to safeguarding user data accessed via Google APIs in strict compliance with Google&apos;s developer policies.
+          </p>
+
+          <div className="p-4 rounded-2xl bg-neutral-900 border border-neutral-800 space-y-3 text-xs">
+            <div>
+              <strong className="text-neutral-100 block font-semibold mb-1">
+                Google User Data We Access &amp; Collect:
+              </strong>
+              <p className="text-neutral-400">
+                When you choose to authenticate via Google Sign-In, we request access to basic profile information (scopes: <code className="text-emerald-400 font-mono">openid</code>, <code className="text-emerald-400 font-mono">email</code>, <code className="text-emerald-400 font-mono">profile</code>). This provides us with your unique Google User ID, full name, verified email address, and profile avatar URL.
+              </p>
+            </div>
+
+            <div>
+              <strong className="text-neutral-100 block font-semibold mb-1">
+                How We Use Google User Data:
+              </strong>
+              <p className="text-neutral-400">
+                We use this data exclusively to create and manage your SquadPicks player account, authenticate your login sessions, and display your chosen name and avatar on private tournament leaderboards and survivor boards. We do NOT access your contacts, Google Drive files, emails, calendar, or any other private Google service data.
+              </p>
+            </div>
+
+            <div>
+              <strong className="text-neutral-100 block font-semibold mb-1">
+                Strict Non-Sharing &amp; Non-Advertising Commitment:
+              </strong>
+              <ul className="list-disc pl-4 space-y-1 text-neutral-400">
+                <li>We do NOT sell, rent, or trade your Google user data to any third parties, brokers, or external entities.</li>
+                <li>We do NOT use or transfer your Google user data to serve targeted advertisements, retargeting campaigns, or commercial marketing.</li>
+                <li>We do NOT use Google user data to train generalized machine learning (ML) or artificial intelligence (AI) models.</li>
+                <li>Your data is transferred solely to essential backend sub-processors (Supabase for secure database hosting, Vercel for hosting) strictly necessary to deliver the SquadPicks service to you.</li>
+              </ul>
+            </div>
+
+            <div className="p-3 rounded-xl bg-neutral-950 border border-emerald-500/30 text-neutral-200 space-y-1">
+              <strong className="text-emerald-400 block font-semibold">
+                Google Limited Use Requirements Compliance:
+              </strong>
+              <p className="text-neutral-300 italic">
+                SquadPicks&apos; use and transfer to any other app of information received from Google APIs will adhere to the{' '}
+                <a
+                  href="https://developers.google.com/terms/api-services-user-data-policy"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-emerald-400 font-semibold underline hover:text-emerald-300 inline-flex items-center gap-0.5"
+                >
+                  Google API Services User Data Policy
+                  <ExternalLink className="w-3 h-3 ml-0.5" />
+                </a>
+                , including the Limited Use requirements.
+              </p>
+            </div>
+
+            <div>
+              <strong className="text-neutral-100 block font-semibold mb-1">
+                Revoking Access &amp; Deleting Your Google User Data:
+              </strong>
+              <p className="text-neutral-400">
+                You maintain complete control over your Google data at all times:
+              </p>
+              <ul className="list-disc pl-4 space-y-1 text-neutral-400 mt-1">
+                <li>
+                  <strong className="text-neutral-300">Revoke App Access:</strong> You can disconnect and revoke SquadPicks&apos; access to your Google Account at any time via your{' '}
+                  <a
+                    href="https://myaccount.google.com/permissions"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-emerald-400 underline hover:text-emerald-300"
+                  >
+                    Google Account Permissions Page
+                  </a>.
+                </li>
+                <li>
+                  <strong className="text-neutral-300">Instant In-App Deletion:</strong> You can permanently delete your player account and purge all associated profile details, picks, and tournament history directly in the app under <strong className="text-neutral-200">Profile &rarr; Edit Profile &rarr; Delete Account</strong>.
+                </li>
+                <li>
+                  <strong className="text-neutral-300">Support Request:</strong> You may also email{' '}
+                  <a href="mailto:support@squadpicks.co.uk" className="text-emerald-400 hover:underline">
+                    support@squadpicks.co.uk
+                  </a>{' '}
+                  to request immediate, complete deletion of your records.
+                </li>
+              </ul>
+            </div>
+          </div>
+        </section>
+
+        {/* 10. Children's Privacy */}
+        <section className="space-y-2">
+          <div className="flex items-center gap-2 text-neutral-100 font-bold text-base">
+            <span className="w-6 h-6 rounded-lg bg-neutral-800 text-neutral-300 flex items-center justify-center text-xs font-mono">10</span>
             <h4>Children&apos;s Privacy</h4>
           </div>
           <p>
